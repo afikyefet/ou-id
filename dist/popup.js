@@ -21,6 +21,144 @@ for (const btn of document.querySelectorAll('.tabs button')) {
 async function getAll() { return new Promise(r => chrome.storage.local.get([KEYS.VARS, KEYS.SITES, KEYS.PROFILES], r)); }
 async function set(partial) { return new Promise(r => chrome.storage.local.set(partial, r)); }
 
+// Notification system
+function showNotification(message, type = 'info', duration = 3000) {
+    const notificationArea = document.getElementById('notification-area');
+    if (!notificationArea) return;
+    
+    const notification = document.createElement('div');
+    notification.style.cssText = `
+        background: ${type === 'success' ? '#28a745' : type === 'error' ? '#dc3545' : '#007bff'};
+        color: white;
+        padding: 8px 12px;
+        border-radius: 4px;
+        margin-bottom: 4px;
+        font-size: 12px;
+        animation: slideIn 0.3s ease-out;
+        max-width: 200px;
+        word-wrap: break-word;
+    `;
+    
+    notification.textContent = message;
+    notificationArea.appendChild(notification);
+    
+    // Add slide-in animation
+    const style = document.createElement('style');
+    style.textContent = `
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+    `;
+    if (!document.querySelector('#notification-style')) {
+        style.id = 'notification-style';
+        document.head.appendChild(style);
+    }
+    
+    // Auto-remove after duration
+    setTimeout(() => {
+        if (notification.parentNode) {
+            notification.style.animation = 'slideOut 0.3s ease-out forwards';
+            setTimeout(() => notification.remove(), 300);
+        }
+    }, duration);
+}
+
+// Smart variable name generation
+function generateSmartVariableName(selector, value, siteName) {
+    // Extract meaningful parts from selector
+    let suggestions = [];
+    
+    // Check for ID or name attributes
+    const idMatch = selector.match(/#([^.\s\[]+)/);
+    const nameMatch = selector.match(/\[name="([^"]+)"\]/);
+    const dataTestIdMatch = selector.match(/\[data-testid="([^"]+)"\]/);
+    const roleMatch = selector.match(/\[role="([^"]+)"\]/);
+    
+    if (idMatch) suggestions.push(cleanAttributeName(idMatch[1]));
+    if (nameMatch) suggestions.push(cleanAttributeName(nameMatch[1]));
+    if (dataTestIdMatch) suggestions.push(cleanAttributeName(dataTestIdMatch[1]));
+    if (roleMatch) suggestions.push(cleanAttributeName(roleMatch[1]));
+    
+    // Extract element type
+    const elementType = selector.split(/[\s>#\.\[]/)[0] || 'element';
+    
+    // Analyze value for context clues
+    if (value && typeof value === 'string') {
+        if (value.includes('@')) suggestions.push('email');
+        else if (value.match(/^\d+$/)) suggestions.push('number');
+        else if (value.match(/^\$[\d,]+/)) suggestions.push('price');
+        else if (value.match(/\d{4}-\d{2}-\d{2}/)) suggestions.push('date');
+        else if (value.length < 20 && !value.includes(' ')) suggestions.push('id');
+        else if (value.includes(' ') && value.length < 100) suggestions.push('title');
+    }
+    
+    // Element type specific names
+    if (elementType === 'input') {
+        suggestions.push('field');
+    } else if (elementType === 'button') {
+        suggestions.push('action');
+    } else if (elementType === 'span' || elementType === 'div') {
+        suggestions.push('text');
+    }
+    
+    // Use site name as prefix
+    const sitePrefix = siteName.replace(/^www\./, '').split('.')[0];
+    
+    // Build final name
+    let finalName = sitePrefix;
+    if (suggestions.length > 0) {
+        finalName += '_' + suggestions[0];
+    } else {
+        finalName += '_' + elementType;
+    }
+    
+    return finalName.toLowerCase().replace(/[^a-z0-9_]/g, '_');
+}
+
+function cleanAttributeName(attr) {
+    return attr
+        .replace(/([a-z])([A-Z])/g, '$1_$2') // camelCase to snake_case
+        .replace(/[-\s]+/g, '_') // replace hyphens/spaces with underscore
+        .replace(/[^a-zA-Z0-9_]/g, '') // remove special chars
+        .toLowerCase();
+}
+
+// Render timer status with visual indicators
+function renderTimerStatus(variable) {
+    if (!variable.autoCopyUntil || variable.autoCopyUntil <= Date.now()) {
+        let status = '<span style="color: var(--muted);">manual</span>';
+        if (variable.lastUpdated) {
+            const lastUpdate = new Date(variable.lastUpdated).toLocaleTimeString();
+            status += ` • last updated ${lastUpdate}`;
+        }
+        return status;
+    }
+    
+    const remainingMs = variable.autoCopyUntil - Date.now();
+    const remainingMinutes = Math.ceil(remainingMs / (1000 * 60));
+    const expiryTime = new Date(variable.autoCopyUntil).toLocaleTimeString();
+    
+    let color = 'var(--accent)'; // blue for active
+    if (remainingMinutes <= 5) color = '#ff9500'; // orange for expiring soon
+    if (remainingMinutes <= 1) color = '#ff3b30'; // red for about to expire
+    
+    let status = `<span style="color: ${color};">🔄 auto (${remainingMinutes}m left, until ${expiryTime})</span>`;
+    
+    if (variable.lastUpdated) {
+        const lastUpdate = new Date(variable.lastUpdated).toLocaleTimeString();
+        status += ` • updated ${lastUpdate}`;
+    }
+    
+    if (variable.sourceSelector) {
+        const shortSelector = variable.sourceSelector.length > 30 ? 
+            variable.sourceSelector.substring(0, 30) + '...' : variable.sourceSelector;
+        status += `<br><span style="color: var(--muted); font-size: 10px;">from: ${shortSelector}</span>`;
+    }
+    
+    return status;
+}
+
 // --- URL helpers (patternizing + matching) ---
 function normalizeUrlBasic(url) {
     const u = new URL(url);
@@ -82,7 +220,7 @@ async function renderVars() {
           <button class="danger" data-role="del">Del</button>
         </div>
       </div>
-      <div class="small">${v.autoCopyUntil ? `auto until ${new Date(v.autoCopyUntil).toLocaleTimeString()}` : 'manual'}</div>
+      <div class="small">${renderTimerStatus(v)}</div>
     `;
         // events
         li.querySelector('[data-role="save"]').onclick = async () => {
@@ -100,15 +238,137 @@ async function renderVars() {
             renderVars();
         };
         li.querySelector('[data-role="auto"]').onclick = async () => {
-            const minutes = +prompt('Auto-copy for how many minutes?', '10') || 10;
-            const until = Date.now() + minutes * 60 * 1000;
-            const all = await getAll();
-            all[KEYS.VARS][v.id] = { ...v, autoCopyUntil: until };
-            await set({ [KEYS.VARS]: all[KEYS.VARS] });
-            chrome.runtime.sendMessage({ type: 'SET_ALARM', payload: { varId: v.id, minutes } });
-            renderVars();
+            if (v.autoCopyUntil && v.autoCopyUntil > Date.now()) {
+                // Already active, ask if they want to stop or extend
+                const choice = prompt(`Auto-copy is active until ${new Date(v.autoCopyUntil).toLocaleTimeString()}.\n\nEnter new minutes to extend, or 0 to stop:`, '0');
+                const minutes = +choice;
+                
+                if (minutes === 0) {
+                    // Stop auto-copy
+                    const all = await getAll();
+                    delete all[KEYS.VARS][v.id].autoCopyUntil;
+                    await set({ [KEYS.VARS]: all[KEYS.VARS] });
+                    chrome.runtime.sendMessage({ type: 'CLEAR_ALARM', payload: { varId: v.id } });
+                    renderVars();
+                } else if (minutes > 0) {
+                    // Extend timer
+                    const until = Date.now() + minutes * 60 * 1000;
+                    const all = await getAll();
+                    all[KEYS.VARS][v.id] = { ...v, autoCopyUntil: until };
+                    await set({ [KEYS.VARS]: all[KEYS.VARS] });
+                    chrome.runtime.sendMessage({ type: 'SET_ALARM', payload: { varId: v.id, minutes } });
+                    renderVars();
+                    // Start auto-refreshing
+                    startAutoRefresh(v.id);
+                }
+            } else {
+                // Not active, start new timer
+                const minutes = +prompt('Auto-copy for how many minutes?', '10') || 10;
+                if (minutes > 0) {
+                    const until = Date.now() + minutes * 60 * 1000;
+                    const all = await getAll();
+                    all[KEYS.VARS][v.id] = { ...v, autoCopyUntil: until };
+                    await set({ [KEYS.VARS]: all[KEYS.VARS] });
+                    chrome.runtime.sendMessage({ type: 'SET_ALARM', payload: { varId: v.id, minutes } });
+                    renderVars();
+                    // Start auto-refreshing
+                    startAutoRefresh(v.id);
+                }
+            }
         };
         $vars.appendChild(li);
+    });
+}
+
+// Auto-refresh functionality for variables with active timers
+const activeRefreshIntervals = new Map();
+
+function startAutoRefresh(varId) {
+    // Clear existing interval if any
+    if (activeRefreshIntervals.has(varId)) {
+        clearInterval(activeRefreshIntervals.get(varId));
+    }
+    
+    // Refresh every 30 seconds
+    const intervalId = setInterval(async () => {
+        await autoRefreshVariable(varId);
+    }, 30000);
+    
+    activeRefreshIntervals.set(varId, intervalId);
+    
+    console.log(`Started auto-refresh for variable ${varId}`);
+}
+
+function stopAutoRefresh(varId) {
+    if (activeRefreshIntervals.has(varId)) {
+        clearInterval(activeRefreshIntervals.get(varId));
+        activeRefreshIntervals.delete(varId);
+        console.log(`Stopped auto-refresh for variable ${varId}`);
+    }
+}
+
+async function autoRefreshVariable(varId) {
+    try {
+        const all = await getAll();
+        const variable = all[KEYS.VARS][varId];
+        
+        if (!variable || !variable.autoCopyUntil || variable.autoCopyUntil <= Date.now()) {
+            // Timer expired or variable deleted, stop refreshing
+            stopAutoRefresh(varId);
+            return;
+        }
+        
+        // Use the stored source selector if available
+        if (variable.sourceSelector) {
+            const { url: activeUrl } = await new Promise(r => chrome.runtime.sendMessage({ type: 'GET_ACTIVE_TAB_URL' }, r));
+            const sites = Object.values(all[KEYS.SITES] || {});
+            
+            // Check if current page matches the source site
+            const sourceSite = sites.find(s => s.id === variable.sourceSiteId);
+            if (sourceSite && matchesPattern(sourceSite.urlPattern, activeUrl || '')) {
+                
+                // Attempt to get updated value using stored selector
+                const res = await new Promise(resolve => {
+                    chrome.runtime.sendMessage({ 
+                        type: 'GET_SNAPSHOT', 
+                        payload: { selector: variable.sourceSelector } 
+                    }, response => resolve(response));
+                });
+                
+                if (res?.ok && res.value !== undefined && res.value !== variable.value) {
+                    // Update variable with new value
+                    all[KEYS.VARS][varId] = { 
+                        ...variable, 
+                        value: res.value,
+                        lastUpdated: Date.now()
+                    };
+                    await set({ [KEYS.VARS]: all[KEYS.VARS] });
+                    
+                    console.log(`✓ Auto-updated ${variable.name}: "${variable.value}" -> "${res.value}"`);
+                    
+                    // Re-render if popup is still open
+                    if (document.querySelector('#vars-list')) {
+                        renderVars();
+                    }
+                } else if (!res?.ok) {
+                    console.log(`Could not resolve selector for ${variable.name}: ${variable.sourceSelector}`);
+                }
+            }
+        }
+    } catch (error) {
+        console.error(`Auto-refresh failed for variable ${varId}:`, error);
+    }
+}
+
+// Start auto-refresh for variables that already have active timers
+async function initializeAutoRefresh() {
+    const all = await getAll();
+    const now = Date.now();
+    
+    Object.values(all[KEYS.VARS] || {}).forEach(v => {
+        if (v.autoCopyUntil && v.autoCopyUntil > now) {
+            startAutoRefresh(v.id);
+        }
     });
 }
 
@@ -152,116 +412,245 @@ async function renderSites() {
 }
 
 async function renderProfiles() {
+    // Show current page info
+    const { url } = await new Promise(r => chrome.runtime.sendMessage({ type: 'GET_ACTIVE_TAB_URL' }, r));
+    const currentDomain = url ? new URL(url).hostname : 'unknown';
+    byId('current-site-info').textContent = `Current page: ${currentDomain}`;
+    
     const { [KEYS.PROFILES]: profiles = {} } = await getAll();
     $profiles.innerHTML = '';
-    Object.values(profiles).forEach(p => {
+    
+    // Show profiles that match current site
+    const currentProfiles = Object.values(profiles).filter(p => 
+        p.sitePattern && matchesPattern(p.sitePattern, url || '')
+    );
+    
+    if (currentProfiles.length === 0) {
+        const notice = document.createElement('div');
+        notice.className = 'card';
+        notice.innerHTML = `
+            <div style="text-align: center; padding: 20px; color: var(--muted);">
+                No profiles for this site yet.<br>
+                Click "New Profile for This Page" to create one.
+            </div>
+        `;
+        $profiles.appendChild(notice);
+        return;
+    }
+    
+    currentProfiles.forEach(p => {
         const li = document.createElement('li');
         li.className = 'card';
         li.innerHTML = `
-      <div class="row">
-        <input value="${p.name}" data-role="name" />
-        <div style="display:flex; gap:4px; justify-content:flex-end">
-          <button data-role="save">Save</button>
-          <button class="danger" data-role="del">Del</button>
-        </div>
-      </div>
-      <div class="small">${p.mappings?.length || 0} mappings</div>
-      <div style="margin-top:6px; display:flex; gap:6px">
-        <button data-role="add-map">+ Mapping</button>
-      </div>
-      <div class="maps"></div>
-    `;
-        const mapsWrap = li.querySelector('.maps');
-
-        const redrawMaps = async () => {
-            const { [KEYS.PROFILES]: allP = {} } = await getAll();
-            const me = allP[p.id];
-            mapsWrap.innerHTML = '';
-            const allVars = (await getAll())[KEYS.VARS] || {};
-            const varsArr = Object.values(allVars);
-            (me.mappings || []).forEach((m, idx) => {
-                // Back-compat: convert {{var:Name}} into { varName: 'Name' } in-memory (UI) if not already set
-                let varName = m.varName || '';
-                if (!varName && typeof m.value === 'string') {
-                    const match = m.value.match(/^\{\{var:(.+)\}\}$/);
-                    if (match) varName = match[1];
-                }
-
-                const div = document.createElement('div');
-                div.className = 'row';
-                div.innerHTML = `
-                <div class="three-col">
-                    <input value="${m.selector || ''}" placeholder="target selector" data-role="sel-${idx}" />
-                    <button class="btn-small" data-role="pick-${idx}">Pick</button>
-                    <button class="danger btn-small" data-role="rm-${idx}">Remove</button>
+            <div class="row">
+                <strong>${p.name}</strong>
+                <div style="display:flex; gap:4px; justify-content:flex-end">
+                    <button data-role="edit">Edit</button>
+                    <button class="danger" data-role="del">Delete</button>
                 </div>
-                <div class="two-col" style="margin-top:6px">
-                    <select data-role="var-${idx}">
-                        <option value="">— choose variable —</option>
-                        ${varsArr.map(v => `<option value="${v.name}" ${varName === v.name ? 'selected' : ''}>${v.name}</option>`).join('')}
-                    </select>
-                    <input value="${(!varName && m.value) ? m.value : ''}" placeholder="literal (used if no variable selected)" data-role="val-${idx}" />
+            </div>
+            <div class="small">${p.inputs?.length || 0} inputs configured</div>
+            <div class="inputs-list" style="margin-top: 8px;"></div>
+        `;
+        
+        const inputsList = li.querySelector('.inputs-list');
+        
+        // Show configured inputs
+        (p.inputs || []).forEach((input, idx) => {
+            const inputDiv = document.createElement('div');
+            inputDiv.className = 'row';
+            inputDiv.style.padding = '4px 0';
+            inputDiv.style.borderBottom = '1px solid #1a2438';
+            
+            const varName = input.varName || 'No variable selected';
+            const selectorPreview = input.selector.length > 40 ? 
+                input.selector.substring(0, 40) + '...' : input.selector;
+                
+            inputDiv.innerHTML = `
+                <div style="flex: 1;">
+                    <div class="small" style="color: var(--muted);">${selectorPreview}</div>
+                    <div style="color: var(--accent);">→ ${varName}</div>
                 </div>
             `;
-
-                // PICK selector for this mapping
-                div.querySelector(`[data-role="pick-${idx}"]`).onclick = async () => {
-                    // remember where to place the selector when the picker returns
-                    window.__ES_EXPECT_SELECTOR__ = { profileId: p.id, mapIndex: idx };
-                    chrome.runtime.sendMessage({ type: 'INJECT_PICKER' });
-                };
-
-                div.querySelector(`[data-role="rm-${idx}"]`).onclick = async () => {
-                    const all = await getAll();
-                    const mp = (all[KEYS.PROFILES][p.id].mappings || []);
-                    mp.splice(idx, 1);
-                    await set({ [KEYS.PROFILES]: all[KEYS.PROFILES] });
-                    redrawMaps();
-                };
-                mapsWrap.appendChild(div);
-
-                // Persist edits
-                const saveField = async () => {
-                    const all = await getAll();
-                    const mp = all[KEYS.PROFILES][p.id].mappings || [];
-                    const mine = mp[idx] || (mp[idx] = { selector: '', value: '' });
-                    mine.selector = div.querySelector(`[data-role="sel-${idx}"]`).value;
-                    mine.varName = div.querySelector(`[data-role="var-${idx}"]`).value || '';
-                    mine.value = div.querySelector(`[data-role="val-${idx}"]`).value; // literal
-                    await set({ [KEYS.PROFILES]: all[KEYS.PROFILES] });
-                };
-                div.querySelector(`[data-role="sel-${idx}"]`).addEventListener('change', saveField);
-                div.querySelector(`[data-role="var-${idx}"]`).addEventListener('change', saveField);
-                div.querySelector(`[data-role="val-${idx}"]`).addEventListener('change', saveField);
-            });
+            inputsList.appendChild(inputDiv);
+        });
+        
+        // Edit button
+        li.querySelector('[data-role="edit"]').onclick = () => {
+            editProfile(p.id);
         };
-
-        li.querySelector('[data-role="add-map"]').onclick = async () => {
-            const all = await getAll();
-            const mp = all[KEYS.PROFILES][p.id].mappings || (all[KEYS.PROFILES][p.id].mappings = []);
-            mp.push({ selector: '', value: '' });
-            await set({ [KEYS.PROFILES]: all[KEYS.PROFILES] });
-            redrawMaps();
-        };
-
-        li.querySelector('[data-role="save"]').onclick = async () => {
-            const name = li.querySelector('[data-role="name"]').value.trim();
-            const all = await getAll();
-            all[KEYS.PROFILES][p.id] = { ...p, name };
-            await set({ [KEYS.PROFILES]: all[KEYS.PROFILES] });
-            renderProfiles();
-        };
-
+        
+        // Delete button  
         li.querySelector('[data-role="del"]').onclick = async () => {
-            const all = await getAll();
-            delete all[KEYS.PROFILES][p.id];
-            await set({ [KEYS.PROFILES]: all[KEYS.PROFILES] });
-            renderProfiles();
+            if (confirm(`Delete profile "${p.name}"?`)) {
+                const all = await getAll();
+                delete all[KEYS.PROFILES][p.id];
+                await set({ [KEYS.PROFILES]: all[KEYS.PROFILES] });
+                renderProfiles();
+            }
         };
-
+        
         $profiles.appendChild(li);
-        redrawMaps();
     });
+}
+
+// Profile editing functionality
+async function editProfile(profileId) {
+    const all = await getAll();
+    const profile = all[KEYS.PROFILES][profileId];
+    if (!profile) return;
+    
+    // Create edit overlay
+    const overlay = document.createElement('div');
+    overlay.style.cssText = `
+        position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0,0,0,0.8); z-index: 10000; display: flex;
+        align-items: center; justify-content: center; padding: 20px;
+    `;
+    
+    const modal = document.createElement('div');
+    modal.style.cssText = `
+        background: var(--bg); border: 1px solid #1a2438; border-radius: 8px;
+        width: 100%; max-width: 500px; max-height: 80vh; overflow-y: auto; padding: 16px;
+    `;
+    
+    const allVars = Object.values(all[KEYS.VARS] || {});
+    
+    modal.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+            <h3 style="margin: 0;">Edit Profile: ${profile.name}</h3>
+            <button id="close-edit" style="background: none; border: none; color: var(--muted); font-size: 18px; cursor: pointer;">×</button>
+        </div>
+        
+        <div style="margin-bottom: 16px;">
+            <label>Profile Name:</label>
+            <input id="edit-profile-name" value="${profile.name}" style="width: 100%; margin-top: 4px; padding: 6px; background: #0e1628; border: 1px solid #1a2438; color: var(--fg); border-radius: 4px;" />
+        </div>
+        
+        <div style="margin-bottom: 16px;">
+            <button id="add-input" style="background: var(--accent); color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer;">+ Add Input Field</button>
+        </div>
+        
+        <div id="inputs-container"></div>
+        
+        <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; padding-top: 16px; border-top: 1px solid #1a2438;">
+            <button id="save-profile" style="background: var(--accent); color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">Save Profile</button>
+            <button id="cancel-edit" style="background: #333; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">Cancel</button>
+        </div>
+    `;
+    
+    const inputsContainer = modal.querySelector('#inputs-container');
+    
+    function renderInputs() {
+        inputsContainer.innerHTML = '';
+        (profile.inputs || []).forEach((input, idx) => {
+            const inputDiv = document.createElement('div');
+            inputDiv.style.cssText = 'border: 1px solid #1a2438; border-radius: 4px; padding: 12px; margin-bottom: 8px;';
+            
+            inputDiv.innerHTML = `
+                <div style="margin-bottom: 8px;">
+                    <label>Input Selector:</label>
+                    <div style="display: flex; gap: 4px; margin-top: 4px;">
+                        <input class="selector-input" data-idx="${idx}" value="${input.selector || ''}" 
+                               style="flex: 1; padding: 6px; background: #0e1628; border: 1px solid #1a2438; color: var(--fg); border-radius: 4px;" 
+                               placeholder="Click Pick to select" readonly />
+                        <button class="pick-input" data-idx="${idx}" 
+                                style="background: var(--accent); color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer;">Pick</button>
+                    </div>
+                </div>
+                
+                <div style="margin-bottom: 8px;">
+                    <label>Fill with Variable:</label>
+                    <select class="var-select" data-idx="${idx}" 
+                            style="width: 100%; margin-top: 4px; padding: 6px; background: #0e1628; border: 1px solid #1a2438; color: var(--fg); border-radius: 4px;">
+                        <option value="">— Choose Variable —</option>
+                        ${allVars.map(v => `<option value="${v.name}" ${input.varName === v.name ? 'selected' : ''}>${v.name}: "${(v.value || '').substring(0, 30)}${v.value && v.value.length > 30 ? '...' : ''}"</option>`).join('')}
+                    </select>
+                </div>
+                
+                <div style="text-align: right;">
+                    <button class="remove-input" data-idx="${idx}"
+                            style="background: #dc3545; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;">Remove</button>
+                </div>
+            `;
+            
+            inputsContainer.appendChild(inputDiv);
+        });
+        
+        // Add event listeners
+        inputsContainer.querySelectorAll('.pick-input').forEach(btn => {
+            btn.onclick = () => {
+                const idx = parseInt(btn.dataset.idx);
+                console.log('Setting picker expectation:', { profileId, inputIndex: idx, isEditing: true });
+                window.__ES_EXPECT_SELECTOR__ = { 
+                    profileId, 
+                    inputIndex: idx,
+                    isEditing: true 
+                };
+                chrome.runtime.sendMessage({ type: 'INJECT_PICKER' });
+                overlay.remove();
+            };
+        });
+        
+        inputsContainer.querySelectorAll('.var-select').forEach(select => {
+            select.onchange = async () => {
+                const idx = parseInt(select.dataset.idx);
+                profile.inputs[idx].varName = select.value;
+                
+                // Save immediately to storage
+                const all = await getAll();
+                all[KEYS.PROFILES][profileId] = profile;
+                await set({ [KEYS.PROFILES]: all[KEYS.PROFILES] });
+            };
+        });
+        
+        inputsContainer.querySelectorAll('.remove-input').forEach(btn => {
+            btn.onclick = async () => {
+                const idx = parseInt(btn.dataset.idx);
+                profile.inputs.splice(idx, 1);
+                
+                // Save immediately to storage
+                const all = await getAll();
+                all[KEYS.PROFILES][profileId] = profile;
+                await set({ [KEYS.PROFILES]: all[KEYS.PROFILES] });
+                
+                renderInputs();
+            };
+        });
+    }
+    
+    // Initial render
+    renderInputs();
+    
+    // Add input button
+    modal.querySelector('#add-input').onclick = async () => {
+        if (!profile.inputs) profile.inputs = [];
+        profile.inputs.push({ selector: '', varName: '' });
+        
+        // Save immediately to storage so picker can find it
+        const all = await getAll();
+        all[KEYS.PROFILES][profileId] = profile;
+        await set({ [KEYS.PROFILES]: all[KEYS.PROFILES] });
+        
+        renderInputs();
+    };
+    
+    // Save profile
+    modal.querySelector('#save-profile').onclick = async () => {
+        profile.name = modal.querySelector('#edit-profile-name').value.trim();
+        all[KEYS.PROFILES][profileId] = profile;
+        await set({ [KEYS.PROFILES]: all[KEYS.PROFILES] });
+        overlay.remove();
+        renderProfiles();
+    };
+    
+    // Cancel/close
+    modal.querySelector('#cancel-edit').onclick = () => overlay.remove();
+    modal.querySelector('#close-edit').onclick = () => overlay.remove();
+    overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+    
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
 }
 
 // Add rows
@@ -278,19 +667,119 @@ byId('add-var').onclick = async () => {
     renderVars();
 };
 
-byId('add-profile').onclick = async () => {
-    const name = byId('new-profile-name').value.trim();
+// New profile for current page
+byId('btn-new-profile-here').onclick = async () => {
+    const { url } = await new Promise(r => chrome.runtime.sendMessage({ type: 'GET_ACTIVE_TAB_URL' }, r));
+    if (!url) return alert('Cannot detect current page URL');
+    
+    const domain = new URL(url).hostname;
+    const suggestedName = generateSmartProfileName(url);
+    const name = prompt(`Profile name for ${domain}:`, suggestedName);
     if (!name) return;
+    
+    const pattern = toPatternFromUrl(url);
     const id = crypto.randomUUID();
     const all = await getAll();
-    all[KEYS.PROFILES][id] = { id, name, mappings: [] };
+    
+    all[KEYS.PROFILES][id] = { 
+        id, 
+        name, 
+        sitePattern: pattern,
+        inputs: []
+    };
+    
     await set({ [KEYS.PROFILES]: all[KEYS.PROFILES] });
-    byId('new-profile-name').value = '';
     renderProfiles();
+    
+    // Immediately open for editing
+    editProfile(id);
 };
+
+// Smart profile name generation
+function generateSmartProfileName(url) {
+    const urlObj = new URL(url);
+    const domain = urlObj.hostname.replace(/^www\./, '');
+    const path = urlObj.pathname;
+    
+    // Common form types based on URL patterns
+    const formTypes = [
+        { pattern: /login|signin|auth/i, name: 'Login' },
+        { pattern: /register|signup|join/i, name: 'Registration' },
+        { pattern: /checkout|payment|billing/i, name: 'Checkout' },
+        { pattern: /profile|account|settings/i, name: 'Profile' },
+        { pattern: /contact|support|feedback/i, name: 'Contact' },
+        { pattern: /search|find/i, name: 'Search' },
+        { pattern: /admin|dashboard/i, name: 'Admin' },
+        { pattern: /order|purchase|buy/i, name: 'Order' }
+    ];
+    
+    // Check URL for form type hints
+    const fullUrl = url.toLowerCase();
+    for (const type of formTypes) {
+        if (type.pattern.test(fullUrl)) {
+            return `${domain.split('.')[0]} ${type.name}`;
+        }
+    }
+    
+    // Default naming based on domain
+    const siteName = domain.split('.')[0];
+    return `${siteName} Form`;
+}
 
 // Picker integration
 byId('btn-pick').onclick = () => chrome.runtime.sendMessage({ type: 'INJECT_PICKER' });
+
+// Manual content script refresh
+byId('btn-refresh-content').onclick = async () => {
+    try {
+        const res = await new Promise((resolve, reject) => {
+            chrome.runtime.sendMessage({ type: 'REFRESH_CONTENT_SCRIPT' }, (response) => {
+                if (chrome.runtime.lastError) {
+                    reject(new Error(chrome.runtime.lastError.message));
+                } else {
+                    resolve(response);
+                }
+            });
+        });
+        
+        if (res?.ok) {
+            alert('Content scripts refreshed successfully!');
+        } else {
+            alert(`Failed to refresh: ${res?.error || 'Unknown error'}`);
+        }
+    } catch (error) {
+        alert(`Refresh failed: ${error.message}`);
+    }
+};
+
+// Toggle page overlay controls
+let overlayEnabled = true;
+byId('btn-toggle-overlay').onclick = async () => {
+    overlayEnabled = !overlayEnabled;
+    
+    try {
+        const res = await new Promise((resolve, reject) => {
+            chrome.runtime.sendMessage({ 
+                type: 'TOGGLE_OVERLAY', 
+                payload: { enabled: overlayEnabled } 
+            }, (response) => {
+                if (chrome.runtime.lastError) {
+                    reject(new Error(chrome.runtime.lastError.message));
+                } else {
+                    resolve(response);
+                }
+            });
+        });
+        
+        if (res?.ok) {
+            byId('btn-toggle-overlay').textContent = overlayEnabled ? '📍 Page Controls ON' : '📍 Page Controls OFF';
+            byId('btn-toggle-overlay').style.color = overlayEnabled ? 'var(--accent)' : 'var(--muted)';
+            showNotification(overlayEnabled ? 'Page controls enabled' : 'Page controls disabled');
+        }
+    } catch (error) {
+        alert(`Toggle failed: ${error.message}`);
+    }
+};
 
 // Receive picker result and attach it to the current site bucket
 if (!window.__ES_POPUP_BOUND__) {
@@ -299,18 +788,30 @@ if (!window.__ES_POPUP_BOUND__) {
         if (msg.type !== 'PICKER_RESULT') return;
         const { selector, url, value } = msg.payload;
 
-        // 1) If we're currently picking a selector for a specific mapping, just place it there and stop.
+        // 1) If we're currently picking a selector for a specific input, just place it there and stop.
         if (window.__ES_EXPECT_SELECTOR__) {
-            const { profileId, mapIndex } = window.__ES_EXPECT_SELECTOR__;
+            const { profileId, inputIndex, isEditing } = window.__ES_EXPECT_SELECTOR__;
+            console.log('Processing picker result for profile:', { profileId, inputIndex, isEditing, selector });
             window.__ES_EXPECT_SELECTOR__ = null;
             const all = await getAll();
             const prof = all[KEYS.PROFILES][profileId];
-            if (prof && prof.mappings && prof.mappings[mapIndex]) {
-                prof.mappings[mapIndex].selector = selector;
+            
+            if (prof && prof.inputs && prof.inputs[inputIndex] !== undefined) {
+                console.log('Updating profile input:', prof.inputs[inputIndex]);
+                prof.inputs[inputIndex].selector = selector;
                 await set({ [KEYS.PROFILES]: all[KEYS.PROFILES] });
-                renderProfiles();
+                console.log('Profile updated successfully');
+                
+                if (isEditing) {
+                    // Reopen the edit dialog
+                    setTimeout(() => editProfile(profileId), 100);
+                } else {
+                    renderProfiles();
+                }
                 // No site/var creation in this flow.
                 return;
+            } else {
+                console.error('Profile input not found:', { prof: !!prof, inputsLength: prof?.inputs?.length, inputIndex });
             }
         }
 
@@ -327,16 +828,27 @@ if (!window.__ES_POPUP_BOUND__) {
         site.elements.push({ selector, note: '', createdAt: Date.now() });
         await set({ [KEYS.SITES]: sites });
 
+        // Smart variable name suggestion
+        const suggestedName = generateSmartVariableName(selector, value, title);
+        
         const varId = crypto.randomUUID();
-        all[KEYS.VARS][varId] = { id: varId, name: selector.split(' ').slice(-1)[0], value };
+        // Link variable to its source selector and site for auto-updating
+        all[KEYS.VARS][varId] = { 
+            id: varId, 
+            name: suggestedName, 
+            value,
+            sourceSelector: selector,
+            sourceSiteId: site.id,
+            lastUpdated: Date.now()
+        };
         await set({ [KEYS.VARS]: all[KEYS.VARS] });
 
         await renderSites();
         await renderVars();
         document.querySelector('.tabs button.active')?.classList.remove('active');
-        document.querySelector('.tabs button[data-tab="sites"]').classList.add('active');
+        document.querySelector('.tabs button[data-tab="vars"]').classList.add('active');
         document.querySelectorAll('.tab').forEach(s => s.classList.remove('active'));
-        document.getElementById('tab-sites').classList.add('active');
+        document.getElementById('tab-vars').classList.add('active');
     });
 }
 
@@ -360,55 +872,126 @@ byId('btn-copy-active').onclick = async () => {
     const elChoice = allEls[+elIdx || 0];
     if (!elChoice) return;
 
-    const res = await new Promise(r => chrome.runtime.sendMessage({ type: 'GET_SNAPSHOT', payload: { selector: elChoice.selector } }, r));
-    if (!res?.ok) return alert('Could not resolve element on this page.');
+    try {
+        const res = await new Promise((resolve, reject) => {
+            chrome.runtime.sendMessage({ type: 'GET_SNAPSHOT', payload: { selector: elChoice.selector } }, (response) => {
+                if (chrome.runtime.lastError) {
+                    reject(new Error(chrome.runtime.lastError.message));
+                } else {
+                    resolve(response);
+                }
+            });
+        });
+        
+        if (!res?.ok) {
+            return alert(`Could not resolve element on this page.\nSelector: ${elChoice.selector}\nPage may need to refresh or element may not exist.`);
+        }
 
-    const varsObj = all[KEYS.VARS];
-    varsObj[choice.id] = { ...choice, value: res.value };
-    await set({ [KEYS.VARS]: varsObj });
-    renderVars();
+        const varsObj = all[KEYS.VARS];
+        varsObj[choice.id] = { ...choice, value: res.value };
+        await set({ [KEYS.VARS]: varsObj });
+        renderVars();
+        alert(`Successfully copied value: "${res.value}"`);
+    } catch (error) {
+        alert(`Error copying from page: ${error.message}\n\nTry refreshing the page and trying again.`);
+    }
 };
 
-// Paste a profile into current page
-byId('btn-paste-profile').onclick = async () => {
+// Fill form with profile data
+byId('btn-fill-form').onclick = async () => {
+    const { url } = await new Promise(r => chrome.runtime.sendMessage({ type: 'GET_ACTIVE_TAB_URL' }, r));
     const all = await getAll();
-    const profiles = Object.values(all[KEYS.PROFILES]);
-    if (!profiles.length) return alert('Create a profile first.');
-    const idx = +prompt(`Profile index?\n${profiles.map((p, i) => `${i}: ${p.name}`).join('\n')}`, '0') || 0;
-    const profile = profiles[idx];
-    if (!profile) return;
+    
+    // Find profiles for current page
+    const matchingProfiles = Object.values(all[KEYS.PROFILES]).filter(p => 
+        p.sitePattern && matchesPattern(p.sitePattern, url || '')
+    );
+    
+    if (matchingProfiles.length === 0) {
+        return alert('No profiles found for this page.\n\nCreate a profile first using "New Profile for This Page".');
+    }
+    
+    let profile;
+    if (matchingProfiles.length === 1) {
+        profile = matchingProfiles[0];
+    } else {
+        const idx = +prompt(`Multiple profiles found. Choose one:\n${matchingProfiles.map((p, i) => `${i}: ${p.name}`).join('\n')}`, '0') || 0;
+        profile = matchingProfiles[idx];
+    }
+    
+    if (!profile || !profile.inputs || profile.inputs.length === 0) {
+        return alert('No inputs configured in this profile.\n\nClick Edit to add some inputs.');
+    }
 
-    // Build mappings preferring explicit var selection, else literal
+    // Build mappings from profile inputs
     const varsByName = Object.fromEntries(Object.values(all[KEYS.VARS]).map(v => [v.name, v.value]));
-    const mappings = (profile.mappings || []).map(m => {
-        let value = '';
-        if (m.varName && varsByName.hasOwnProperty(m.varName)) {
-            value = varsByName[m.varName] ?? '';
-        } else if (typeof m.value === 'string') {
-            // Back-compat for {{var:Name}} if still present in storage
-            const match = m.value.match(/^\{\{var:(.+)\}\}$/);
-            if (match && varsByName.hasOwnProperty(match[1])) {
-                value = varsByName[match[1]] ?? '';
-            } else {
-                value = m.value;
-            }
-        }
-        return { selector: m.selector, value };
-    });
+    const mappings = profile.inputs
+        .filter(input => input.selector && input.varName) // Only inputs with selector and variable
+        .map(input => {
+            const value = varsByName[input.varName] || '';
+            return { selector: input.selector, value };
+        });
+    
+    if (mappings.length === 0) {
+        return alert('No valid input mappings found.\n\nMake sure each input has both a selector and a variable selected.');
+    }
 
-    chrome.runtime.sendMessage({ type: 'PASTE_PROFILE', payload: { mappings } }, (res) => {
-        const err = chrome.runtime.lastError?.message;
-        if (err) return alert(`Paste failed: ${err}`);
-        if (!res?.ok) return alert('Paste failed on this page.');
-        const failed = (res.results || []).filter(r => !r.ok);
-        if (failed.length) {
-          alert(`Pasted with warnings:\n${failed.map(f => `• ${f.selector}`).join('\n')}`);
+    try {
+        const res = await new Promise((resolve, reject) => {
+            chrome.runtime.sendMessage({ type: 'PASTE_PROFILE', payload: { mappings } }, (response) => {
+                if (chrome.runtime.lastError) {
+                    reject(new Error(chrome.runtime.lastError.message));
+                } else {
+                    resolve(response);
+                }
+            });
+        });
+        
+        if (!res?.ok) {
+            const failedResults = (res.results || []).filter(r => !r.ok);
+            const notFoundResults = (res.results || []).filter(r => !r.found);
+            
+            let errorMsg = `Fill failed for profile "${profile.name}".\n\n`;
+            if (notFoundResults.length > 0) {
+                errorMsg += `Elements not found:\n${notFoundResults.map(f => `• ${f.selector}`).join('\n')}\n\n`;
+            }
+            if (failedResults.length > 0) {
+                errorMsg += `Failed to set values:\n${failedResults.map(f => `• ${f.selector}`).join('\n')}`;
+            }
+            errorMsg += '\nTry using "Refresh Scripts" and try again.';
+            return alert(errorMsg);
         }
-      });
-      
+        
+        const successful = (res.results || []).filter(r => r.ok).length;
+        const failed = (res.results || []).filter(r => !r.ok);
+        
+        if (failed.length === 0) {
+            alert(`✅ Successfully filled ${successful} fields with "${profile.name}" profile!`);
+        } else {
+            alert(`⚠️ Filled ${successful} fields, but ${failed.length} failed:\n${failed.map(f => `• ${f.selector} ${f.found ? '(set failed)' : '(not found)'}`).join('\n')}`);
+        }
+    } catch (error) {
+        alert(`Fill error: ${error.message}\n\nTry using "Refresh Scripts" button and try again.`);
+    }
 };
+
+// Listen for background auto-copy updates
+chrome.runtime.onMessage.addListener((msg) => {
+    if (msg.type === 'VARIABLE_UPDATED') {
+        const { variableName, oldValue, newValue } = msg.payload;
+        showNotification(`${variableName} updated: ${newValue}`, 'success');
+        
+        // Re-render variables to show updated value
+        if (document.querySelector('#vars-list')) {
+            renderVars();
+        }
+    }
+});
 
 // Initial renders
 renderVars();
 renderSites();
 renderProfiles();
+
+// Initialize auto-refresh for existing active variables
+initializeAutoRefresh();

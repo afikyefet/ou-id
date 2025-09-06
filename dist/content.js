@@ -110,7 +110,9 @@ function robustSelector(el) {
   }
   
   chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
-    if (msg.type === 'RESOLVE_ELEMENT_AND_VALUE') {
+    if (msg.type === 'PING') {
+      sendResponse({ pong: true });
+    } else if (msg.type === 'RESOLVE_ELEMENT_AND_VALUE') {
       const { selector } = msg.payload;
       const el = resolveSelector(selector);
       const value = getElementValue(el);
@@ -121,7 +123,7 @@ function robustSelector(el) {
       for (const m of mappings) {
         const el = resolveSelector(m.selector);
         const ok = setElementValue(el, m.value);
-        results.push({ selector: m.selector, ok });
+        results.push({ selector: m.selector, ok, found: !!el });
       }
       // ok = true if all succeeded
       sendResponse({ ok: results.every(r => r.ok), results });
@@ -129,6 +131,143 @@ function robustSelector(el) {
     return true;
   });
   
+  // Smart element analysis for better picker UX
+  function analyzeElement(el) {
+    if (!el || el.nodeType !== 1) return null;
+    
+    const tag = el.tagName.toLowerCase();
+    const type = (el.getAttribute('type') || '').toLowerCase();
+    const id = el.getAttribute('id') || '';
+    const name = el.getAttribute('name') || '';
+    const placeholder = el.getAttribute('placeholder') || '';
+    const ariaLabel = el.getAttribute('aria-label') || '';
+    const className = el.className?.toString() || '';
+    const value = getElementValue(el) || '';
+    
+    let category = 'element';
+    let purpose = '';
+    let confidence = 'low';
+    
+    // Analyze by element type and attributes
+    if (tag === 'input') {
+      if (type === 'email') { category = 'email'; purpose = 'Email field'; confidence = 'high'; }
+      else if (type === 'password') { category = 'password'; purpose = 'Password field'; confidence = 'high'; }
+      else if (type === 'text') { 
+        if (/name|first|last/i.test(name + id + placeholder + ariaLabel)) {
+          category = 'name'; purpose = 'Name field'; confidence = 'high';
+        } else if (/address|street|city|zip/i.test(name + id + placeholder + ariaLabel)) {
+          category = 'address'; purpose = 'Address field'; confidence = 'high';
+        } else if (/phone|mobile|tel/i.test(name + id + placeholder + ariaLabel)) {
+          category = 'phone'; purpose = 'Phone field'; confidence = 'high';
+        } else {
+          category = 'text'; purpose = 'Text input'; confidence = 'medium';
+        }
+      }
+      else if (type === 'number') { category = 'number'; purpose = 'Number field'; confidence = 'high'; }
+      else if (type === 'checkbox') { category = 'checkbox'; purpose = 'Checkbox'; confidence = 'high'; }
+      else if (type === 'radio') { category = 'radio'; purpose = 'Radio button'; confidence = 'high'; }
+      else if (type === 'submit') { category = 'button'; purpose = 'Submit button'; confidence = 'high'; }
+    } else if (tag === 'select') {
+      category = 'select'; purpose = 'Dropdown'; confidence = 'high';
+    } else if (tag === 'textarea') {
+      category = 'textarea'; purpose = 'Text area'; confidence = 'high';
+    } else if (tag === 'button') {
+      category = 'button'; purpose = 'Button'; confidence = 'high';
+    } else if (tag === 'a') {
+      category = 'link'; purpose = 'Link'; confidence = 'medium';
+    } else if (/h[1-6]/.test(tag)) {
+      category = 'heading'; purpose = 'Heading'; confidence = 'medium';
+    } else if (el.isContentEditable) {
+      category = 'contenteditable'; purpose = 'Editable content'; confidence = 'high';
+    }
+    
+    // Analyze value content for additional context
+    if (value) {
+      if (value.includes('@') && value.includes('.')) {
+        category = 'email'; purpose = 'Email address'; confidence = 'high';
+      } else if (/^\d+$/.test(value)) {
+        category = 'number'; purpose = 'Number'; confidence = 'medium';
+      } else if (/^\$[\d,]+(\.\d{2})?$/.test(value)) {
+        category = 'price'; purpose = 'Price'; confidence = 'high';
+      } else if (/\d{4}-\d{2}-\d{2}/.test(value)) {
+        category = 'date'; purpose = 'Date'; confidence = 'high';
+      }
+    }
+    
+    return {
+      category,
+      purpose,
+      confidence,
+      value: value.substring(0, 50), // Limit for display
+      hasValue: !!value
+    };
+  }
+  
+  // URL change monitoring for auto-copy functionality
+  let lastUrl = location.href;
+  let pageLoadTime = Date.now();
+  
+  function checkForAutoRefresh() {
+    // Notify background script of page change for auto-copy variables
+    chrome.runtime.sendMessage({
+      type: 'PAGE_CHANGED',
+      payload: { 
+        url: location.href,
+        timestamp: Date.now(),
+        loadTime: pageLoadTime
+      }
+    }).catch(() => {}); // Ignore errors if extension is not ready
+  }
+  
+  // Monitor URL changes (SPA navigation)
+  const observer = new MutationObserver(() => {
+    if (location.href !== lastUrl) {
+      lastUrl = location.href;
+      pageLoadTime = Date.now();
+      // Delay to let page content load
+      setTimeout(checkForAutoRefresh, 1000);
+    }
+  });
+  
+  observer.observe(document, { subtree: true, childList: true });
+  
+  // Also check on initial load and when DOM is ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+      setTimeout(checkForAutoRefresh, 500);
+    });
+  } else {
+    setTimeout(checkForAutoRefresh, 500);
+  }
+  
+  // Handle navigation events
+  window.addEventListener('popstate', () => {
+    pageLoadTime = Date.now();
+    setTimeout(checkForAutoRefresh, 1000);
+  });
+  
+  // Handle hash changes
+  window.addEventListener('hashchange', () => {
+    setTimeout(checkForAutoRefresh, 500);
+  });
+
+  // Inject page overlay system
+  function injectPageOverlay() {
+    if (document.querySelector('#es-page-overlay-script')) return;
+    
+    const script = document.createElement('script');
+    script.id = 'es-page-overlay-script';
+    script.src = chrome.runtime.getURL('page-overlay.js');
+    (document.head || document.documentElement).appendChild(script);
+  }
+  
+  // Inject overlay after DOM is ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', injectPageOverlay);
+  } else {
+    injectPageOverlay();
+  }
+
   // Expose helpers to picker.js
-  window.__ES_UTILS__ = { robustSelector, getElementValue };
+  window.__ES_UTILS__ = { robustSelector, getElementValue, analyzeElement };
   

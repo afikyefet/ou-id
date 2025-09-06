@@ -14,7 +14,8 @@ body {
     font: 13px/1.35 system-ui, sans-serif;
     color: var(--fg);
     background: var(--bg);
-    width: 360px
+    width: 600px;
+    height: auto;
 }
 
 header {
