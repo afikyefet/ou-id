@@ -975,6 +975,27 @@ byId('btn-fill-form').onclick = async () => {
     }
 };
 
+// Toggle floating vars window
+byId('btn-floating-vars').onclick = async () => {
+    try {
+        const res = await new Promise((resolve, reject) => {
+            chrome.runtime.sendMessage({ 
+                type: 'SHOW_FLOATING_VARS'
+            }, (response) => {
+                if (chrome.runtime.lastError) {
+                    reject(new Error(chrome.runtime.lastError.message));
+                } else {
+                    resolve(response);
+                }
+            });
+        });
+        
+        showNotification('Floating vars window opened');
+    } catch (error) {
+        alert(`Failed to show floating vars: ${error.message}`);
+    }
+};
+
 // Listen for background auto-copy updates
 chrome.runtime.onMessage.addListener((msg) => {
     if (msg.type === 'VARIABLE_UPDATED') {

@@ -169,18 +169,27 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                 const enabled = msg.payload?.enabled ?? true;
                 await setOverlayState(enabled);
                 
-                // Broadcast to all tabs
+                // Broadcast to all tabs in parallel (faster)
                 const tabs = await chrome.tabs.query({});
-                for (const tab of tabs) {
-                    try {
-                        await chrome.tabs.sendMessage(tab.id, {
-                            type: 'TOGGLE_OVERLAY',
-                            payload: { enabled }
-                        });
-                    } catch (e) {
-                        // Tab might not have content script
-                    }
-                }
+                const promises = tabs.map(tab => 
+                    chrome.tabs.sendMessage(tab.id, {
+                        type: 'TOGGLE_OVERLAY',
+                        payload: { enabled }
+                    }).catch(() => {}) // Ignore errors silently
+                );
+                await Promise.allSettled(promises);
+                
+                sendResponse({ ok: true });
+            }
+            else if (msg.type === 'SHOW_FLOATING_VARS') {
+                // Broadcast to all tabs in parallel (faster)
+                const tabs = await chrome.tabs.query({});
+                const promises = tabs.map(tab => 
+                    chrome.tabs.sendMessage(tab.id, {
+                        type: 'SHOW_FLOATING_VARS'
+                    }).catch(() => {}) // Ignore errors silently
+                );
+                await Promise.allSettled(promises);
                 sendResponse({ ok: true });
             }
             else if (msg.type === 'UPDATE_VARIABLE_VALUE') {
@@ -194,6 +203,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                     vars[variableId].lastUpdated = Date.now();
                     
                     await chrome.storage.local.set({ [STORAGE_KEYS.VARS]: vars });
+                    
+                    // Broadcast data update to page overlays
+                    await broadcastDataUpdate();
                     
                     // Broadcast update to all tabs
                     const tabs = await chrome.tabs.query({});
@@ -306,6 +318,10 @@ async function handlePageChanged(tabId, payload) {
         if (Object.keys(updatedVars).length > 0) {
             const allVars = { ...vars, ...updatedVars };
             await chrome.storage.local.set({ [STORAGE_KEYS.VARS]: allVars });
+            
+            // Broadcast data update to page overlays
+            await broadcastDataUpdate();
+            
             console.log(`Updated ${Object.keys(updatedVars).length} variables`);
         }
         
