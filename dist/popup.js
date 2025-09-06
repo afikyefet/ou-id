@@ -6,6 +6,20 @@ const $profiles = byId('profiles-list');
 // When picking a selector for a specific mapping, we store the target here:
 window.__ES_EXPECT_SELECTOR__ = null;
 
+// Initialize the overlay toggle state on popup open
+(async function initOverlayToggle() {
+    try {
+        const res = await new Promise(r => chrome.runtime.sendMessage({ type: 'GET_OVERLAY_DATA' }, r));
+        const enabled = res?.enabled ?? true;
+        overlayEnabled = enabled; // reuse existing variable
+        const btn = document.getElementById('btn-toggle-overlay');
+        btn.textContent = enabled ? '📍 Page Controls ON' : '📍 Page Controls OFF';
+        btn.style.color = enabled ? 'var(--accent)' : 'var(--muted)';
+    } catch (_) { 
+        // ignore errors if extension context is unavailable
+    }
+})();
+
 // Tab logic
 for (const btn of document.querySelectorAll('.tabs button')) {
     btn.addEventListener('click', () => {

@@ -398,3 +398,15 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
         console.log(`Auto-copy timer expired for variable: ${vars[varId]?.name || varId}`);
     }
 });
+
+// Broadcast data changes so the overlay updates live
+chrome.storage.onChanged.addListener(async (changes, areaName) => {
+    if (areaName !== 'local') return;
+    if (changes.vars || changes.sites || changes.profiles) {
+        try { 
+            await broadcastDataUpdate(); 
+        } catch (_) {
+            // Ignore errors if tabs don't respond
+        }
+    }
+});

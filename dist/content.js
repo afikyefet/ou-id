@@ -251,23 +251,11 @@ function robustSelector(el) {
     setTimeout(checkForAutoRefresh, 500);
   });
 
-  // Inject page overlay system
-  function injectPageOverlay() {
-    if (document.querySelector('#es-page-overlay-script')) return;
-    
-    const script = document.createElement('script');
-    script.id = 'es-page-overlay-script';
-    script.src = chrome.runtime.getURL('page-overlay.js');
-    (document.head || document.documentElement).appendChild(script);
-  }
-  
-  // Inject overlay after DOM is ready
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', injectPageOverlay);
-  } else {
-    injectPageOverlay();
+  // REMOVE: Page overlay now loads as a content script (CSP-proof)
+  function injectPageOverlay() { 
+    /* no-op: overlay is a content script now */ 
   }
 
-  // Expose helpers to picker.js
-  window.__ES_UTILS__ = { robustSelector, getElementValue, analyzeElement };
+  // Expose helpers to picker.js and page overlay
+  window.__ES_UTILS__ = { robustSelector, getElementValue, setElementValue, analyzeElement };
   
