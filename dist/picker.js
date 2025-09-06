@@ -3,54 +3,7 @@
     if (window.__ES_PICKER_ACTIVE__) return; // prevent duplicates
     window.__ES_PICKER_ACTIVE__ = true;
 
-    let { robustSelector, getElementValue } = window.__ES_UTILS__ || {};
-    // Fallbacks if content.js hasn't populated __ES_UTILS__ yet
-    if (!robustSelector) {
-        robustSelector = function (el) {
-            if (!el || el.nodeType !== 1) return null;
-            const id = el.getAttribute('id');
-            const name = el.getAttribute('name');
-            const dataTestId = el.getAttribute('data-testid');
-            const role = el.getAttribute('role');
-            const tag = el.tagName.toLowerCase();
-            const picks = [];
-            if (id && !/\d{3,}/.test(id)) picks.push(`#${CSS.escape(id)}`);
-            if (name) picks.push(`[name="${CSS.escape(name)}"]`);
-            if (dataTestId) picks.push(`[data-testid="${CSS.escape(dataTestId)}"]`);
-            if (role) picks.push(`[role="${CSS.escape(role)}"]`);
-            if (picks.length) return `${tag}${picks.join('')}`;
-            // simple path
-            const path = [];
-            let n = el;
-            while (n && n.nodeType === 1 && path.length < 5) {
-                let sel = n.tagName.toLowerCase();
-                const cls = (n.className || '').toString().split(/\s+/).filter(Boolean).slice(0, 2);
-                if (cls.length) sel += '.' + cls.map(c => CSS.escape(c)).join('.');
-                const p = n.parentElement;
-                if (p) {
-                    const sibs = Array.from(p.children).filter(x => x.tagName === n.tagName);
-                    if (sibs.length > 1) sel += `:nth-of-type(${sibs.indexOf(n) + 1})`;
-                }
-                path.unshift(sel);
-                n = p;
-            }
-            return path.join(' > ');
-        };
-    }
-    if (!getElementValue) {
-        getElementValue = function (el) {
-            if (!el) return null;
-            const tag = el.tagName.toLowerCase();
-            const type = (el.getAttribute('type') || '').toLowerCase();
-            if (tag === 'input' || tag === 'textarea') {
-                if (type === 'checkbox') return el.checked ? 'true' : 'false';
-                if (type === 'radio') return el.checked ? el.value : '';
-                return el.value ?? '';
-            }
-            if (el.isContentEditable) return el.innerText;
-            return el.textContent?.trim() ?? '';
-        };
-    }
+    const { robustSelector, getElementValue } = window.__ES_UTILS__ || {};
 
     const overlay = document.createElement('div');
     overlay.style.position = 'fixed';
@@ -92,16 +45,11 @@
         box.style.height = rect.height + 'px';
     }
 
-    let rafId = 0;
     function onMove(e) {
-        if (rafId) cancelAnimationFrame(rafId);
-        const x = e.clientX, y = e.clientY;
-        rafId = requestAnimationFrame(() => {
-            const el = document.elementFromPoint(x, y);
-            if (!el || el === overlay || el === box) return;
-            currentEl = el.closest('input, textarea, [contenteditable=""], [contenteditable="true"], select') || el;
-            highlight(currentEl);
-        });
+        const el = document.elementFromPoint(e.clientX, e.clientY);
+        if (!el || el === overlay || el === box) return;
+        currentEl = el.closest('input, textarea, [contenteditable=""], [contenteditable="true"], select') || el;
+        highlight(currentEl);
     }
 
     function cleanup() {
