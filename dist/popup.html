@@ -1,0 +1,58 @@
+<!doctype html>
+<html>
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Element Snapper</title>
+    <link rel="stylesheet" href="popup.css" />
+</head>
+
+<body>
+    <header>
+        <h1>Element Snapper</h1>
+    </header>
+
+    <nav class="tabs">
+        <button data-tab="vars" class="active">Variables</button>
+        <button data-tab="sites">Sites</button>
+        <button data-tab="profiles">Profiles</button>
+    </nav>
+
+    <main>
+        <section id="tab-vars" class="tab active">
+            <div class="toolbar">
+                <button id="btn-pick">Pick Element</button>
+                <button id="btn-copy-active">Copy from Page</button>
+            </div>
+            <ul id="vars-list" class="list"></ul>
+            <div class="new-row">
+                <input id="new-var-name" placeholder="New variable name" />
+                <input id="new-var-value" placeholder="Value (optional)" />
+                <button id="add-var">Add</button>
+            </div>
+        </section>
+
+        <section id="tab-sites" class="tab">
+            <div class="toolbar">
+                <span id="active-url"></span>
+            </div>
+            <ul id="sites-list" class="list"></ul>
+        </section>
+
+        <section id="tab-profiles" class="tab">
+            <div class="toolbar">
+                <button id="btn-paste-profile">Paste to Page</button>
+            </div>
+            <ul id="profiles-list" class="list"></ul>
+            <div class="new-row">
+                <input id="new-profile-name" placeholder="New profile name" />
+                <button id="add-profile">Add</button>
+            </div>
+        </section>
+    </main>
+
+    <script src="popup.js"></script>
+</body>
+
+</html>
