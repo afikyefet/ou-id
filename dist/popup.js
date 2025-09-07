@@ -994,7 +994,7 @@ byId('btn-floating-vars').onclick = async () => {
     try {
         const res = await new Promise((resolve, reject) => {
             chrome.runtime.sendMessage({ 
-                type: 'SHOW_FLOATING_VARS'
+                type: 'TOGGLE_FLOATING_VARS'
             }, (response) => {
                 if (chrome.runtime.lastError) {
                     reject(new Error(chrome.runtime.lastError.message));
@@ -1004,9 +1004,9 @@ byId('btn-floating-vars').onclick = async () => {
             });
         });
         
-        showNotification('Floating vars window opened');
+        showNotification(res?.visible ? 'Floating panel ON' : 'Floating panel OFF');
     } catch (error) {
-        alert(`Failed to show floating vars: ${error.message}`);
+        alert(`Failed to toggle floating vars: ${error.message}`);
     }
 };
 

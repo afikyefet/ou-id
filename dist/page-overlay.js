@@ -10,6 +10,48 @@
     let recentVars = [];
     let isMainTab = false; // Only one tab will own the floating window
     
+    // CSS Custom Properties for theming
+    const themeStyles = `
+        :root {
+            --es-primary: #6B5BFF;
+            --es-secondary: #FF4D8D;
+            --es-success: #34c759;
+            --es-background: rgba(17,17,17,0.95);
+            --es-surface: rgba(255,255,255,0.15);
+            --es-text: white;
+            --es-text-muted: rgba(255,255,255,0.6);
+            --es-accent: #4f8cff;
+            --es-border: rgba(255,255,255,0.08);
+            --es-shadow: rgba(0,0,0,0.3);
+        }
+        
+        [data-es-theme="light"] {
+            --es-primary: #5E4EF5;
+            --es-secondary: #E73C7E;
+            --es-success: #28A745;
+            --es-background: rgba(255,255,255,0.95);
+            --es-surface: rgba(0,0,0,0.1);
+            --es-text: #1a1a1a;
+            --es-text-muted: rgba(0,0,0,0.6);
+            --es-accent: #007AFF;
+            --es-border: rgba(0,0,0,0.1);
+            --es-shadow: rgba(0,0,0,0.15);
+        }
+        
+        [data-es-theme="gold"] {
+            --es-primary: #FFB800;
+            --es-secondary: #FF6B35;
+            --es-success: #32D74B;
+            --es-background: rgba(25,20,15,0.95);
+            --es-surface: rgba(255,184,0,0.15);
+            --es-text: #F2E5A2;
+            --es-text-muted: rgba(242,229,162,0.7);
+            --es-accent: #FFD60A;
+            --es-border: rgba(255,184,0,0.2);
+            --es-shadow: rgba(0,0,0,0.4);
+        }
+    `;
+    
     // Styles for the overlay controls
     const overlayStyles = `
         .es-copy-indicator {
@@ -17,8 +59,8 @@
             width: 18px !important;
             height: 18px !important;
             border-radius: 50% !important;
-            background: linear-gradient(135deg, #6B5BFF, #FF4D8D) !important;
-            color: #fff !important;
+            background: linear-gradient(135deg, var(--es-primary), var(--es-secondary)) !important;
+            color: var(--es-text) !important;
             border: none !important;
             display: flex !important;
             align-items: center !important;
@@ -27,19 +69,19 @@
             cursor: pointer !important;
             pointer-events: auto !important;
             z-index: 2147483646 !important;
-            box-shadow: 0 1px 4px rgba(0,0,0,.25) !important;
+            box-shadow: 0 1px 4px var(--es-shadow) !important;
             transition: all 0.2s ease !important;
         }
         
         .es-copy-indicator:hover {
             transform: scale(1.1) !important;
-            box-shadow: 0 2px 8px rgba(0,0,0,.35) !important;
+            box-shadow: 0 2px 8px var(--es-shadow) !important;
         }
         
         .es-paste-button {
             position: absolute !important;
-            background: linear-gradient(135deg, #34c759 0%, #30d158 100%) !important;
-            color: white !important;
+            background: linear-gradient(135deg, var(--es-success) 0%, var(--es-success) 100%) !important;
+            color: var(--es-text) !important;
             border: none !important;
             border-radius: 12px !important;
             padding: 4px 8px !important;
@@ -48,7 +90,7 @@
             font-weight: 500 !important;
             cursor: pointer !important;
             z-index: 2147483646 !important;
-            box-shadow: 0 2px 8px rgba(52,199,89,0.3) !important;
+            box-shadow: 0 2px 8px var(--es-shadow) !important;
             transition: all 0.2s ease !important;
             pointer-events: auto !important;
             display: flex !important;
@@ -60,38 +102,128 @@
         
         .es-paste-button:hover {
             transform: scale(1.05) !important;
-            box-shadow: 0 4px 12px rgba(52,199,89,0.4) !important;
+            box-shadow: 0 4px 12px var(--es-shadow) !important;
         }
         
         .es-element-highlight {
-            outline: 1px solid #4f8cff !important;
+            outline: 1px solid var(--es-accent) !important;
             outline-offset: 0px !important;
             border-radius: 2px !important;
-            background: rgba(79,140,255,0.02) !important;
+            background: color-mix(in srgb, var(--es-accent) 2%, transparent) !important;
         }
         
         .es-paste-highlight {
-            outline: 1px solid #34c759 !important;
+            outline: 1px solid var(--es-success) !important;
             outline-offset: 0px !important;
             border-radius: 2px !important;
-            background: rgba(52,199,89,0.02) !important;
+            background: color-mix(in srgb, var(--es-success) 2%, transparent) !important;
         }
         
-        .es-notification {
+        .es-toast-container {
             position: fixed !important;
-            top: 20px !important;
-            right: 20px !important;
-            background: rgba(17,17,17,0.95) !important;
-            color: white !important;
+            top: 16px !important;
+            right: 16px !important;
+            z-index: 2147483647 !important;
+            display: flex !important;
+            flex-direction: column !important;
+            gap: 8px !important;
+            pointer-events: none !important;
+        }
+        
+        .es-toast {
+            background: var(--es-background) !important;
+            color: var(--es-text) !important;
             padding: 12px 16px !important;
             border-radius: 8px !important;
             font-size: 13px !important;
             font-family: system-ui, sans-serif !important;
-            z-index: 2147483647 !important;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.3) !important;
+            box-shadow: 0 4px 20px var(--es-shadow) !important;
             backdrop-filter: blur(12px) !important;
-            border: 1px solid rgba(255,255,255,0.1) !important;
-            animation: esSlideIn 0.3s ease-out !important;
+            border: 1px solid var(--es-border) !important;
+            pointer-events: auto !important;
+            display: flex !important;
+            align-items: center !important;
+            gap: 8px !important;
+            min-width: 200px !important;
+            max-width: 300px !important;
+            transform: translateX(100%) !important;
+            opacity: 0 !important;
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
+        }
+        
+        .es-toast.es-toast-show {
+            transform: translateX(0) !important;
+            opacity: 1 !important;
+        }
+        
+        .es-toast.es-toast-hide {
+            transform: translateX(100%) !important;
+            opacity: 0 !important;
+        }
+        
+        .es-toast-icon {
+            flex-shrink: 0 !important;
+            font-size: 16px !important;
+            width: 16px !important;
+            height: 16px !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+        }
+        
+        .es-toast-content {
+            flex: 1 !important;
+            min-width: 0 !important;
+        }
+        
+        .es-toast-title {
+            font-weight: 500 !important;
+            margin: 0 0 2px 0 !important;
+            font-size: 13px !important;
+        }
+        
+        .es-toast-message {
+            font-size: 12px !important;
+            opacity: 0.8 !important;
+            margin: 0 !important;
+        }
+        
+        .es-toast-close {
+            background: none !important;
+            border: none !important;
+            color: var(--es-text) !important;
+            opacity: 0.6 !important;
+            cursor: pointer !important;
+            padding: 2px !important;
+            border-radius: 2px !important;
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            width: 16px !important;
+            height: 16px !important;
+            font-size: 12px !important;
+            transition: opacity 0.2s ease !important;
+        }
+        
+        .es-toast-close:hover {
+            opacity: 1 !important;
+            background: color-mix(in srgb, var(--es-text) 10%, transparent) !important;
+        }
+        
+        .es-toast.es-toast-success {
+            border-left: 3px solid var(--es-success) !important;
+        }
+        
+        .es-toast.es-toast-error {
+            border-left: 3px solid #FF3B30 !important;
+        }
+        
+        .es-toast.es-toast-warning {
+            border-left: 3px solid #FF9500 !important;
+        }
+        
+        .es-toast.es-toast-info {
+            border-left: 3px solid var(--es-accent) !important;
         }
         
         @keyframes esSlideIn {
@@ -110,26 +242,26 @@
             right: 20px !important;
             width: 240px !important;
             max-height: 350px !important;
-            background: rgba(17,17,17,0.95) !important;
-            border: 1px solid rgba(255,255,255,0.15) !important;
+            background: var(--es-background) !important;
+            border: 1px solid var(--es-surface) !important;
             border-radius: 8px !important;
-            box-shadow: 0 6px 24px rgba(0,0,0,0.3) !important;
+            box-shadow: 0 6px 24px var(--es-shadow) !important;
             backdrop-filter: blur(12px) !important;
             z-index: 2147483645 !important;
             font-family: system-ui, sans-serif !important;
-            color: white !important;
+            color: var(--es-text) !important;
             resize: both !important;
             overflow: hidden !important;
         }
         
         .es-floating-header {
             padding: 8px 12px !important;
-            border-bottom: 1px solid rgba(255,255,255,0.08) !important;
+            border-bottom: 1px solid var(--es-border) !important;
             display: flex !important;
             align-items: center !important;
             justify-content: space-between !important;
             cursor: move !important;
-            background: rgba(79,140,255,0.08) !important;
+            background: color-mix(in srgb, var(--es-accent) 8%, transparent) !important;
         }
         
         .es-floating-title {
@@ -141,7 +273,7 @@
         .es-floating-close {
             background: none !important;
             border: none !important;
-            color: white !important;
+            color: var(--es-text) !important;
             cursor: pointer !important;
             font-size: 14px !important;
             padding: 2px !important;
@@ -151,7 +283,7 @@
         }
         
         .es-floating-close:hover {
-            background: rgba(255,255,255,0.1) !important;
+            background: color-mix(in srgb, var(--es-text) 10%, transparent) !important;
             opacity: 1 !important;
         }
         
@@ -166,7 +298,7 @@
             align-items: center !important;
             justify-content: space-between !important;
             padding: 6px 0 !important;
-            border-bottom: 1px solid rgba(255,255,255,0.04) !important;
+            border-bottom: 1px solid var(--es-border) !important;
         }
         
         .es-var-info {
@@ -177,21 +309,21 @@
         .es-var-name {
             font-size: 11px !important;
             font-weight: 500 !important;
-            color: #4f8cff !important;
+            color: var(--es-accent) !important;
             margin-bottom: 1px !important;
         }
         
         .es-var-value {
             font-size: 10px !important;
-            color: rgba(255,255,255,0.6) !important;
+            color: var(--es-text-muted) !important;
             overflow: hidden !important;
             text-overflow: ellipsis !important;
             white-space: nowrap !important;
         }
         
         .es-var-copy {
-            background: linear-gradient(135deg, #34c759 0%, #30d158 100%) !important;
-            color: white !important;
+            background: linear-gradient(135deg, var(--es-success) 0%, var(--es-success) 100%) !important;
+            color: var(--es-text) !important;
             border: none !important;
             border-radius: 4px !important;
             padding: 3px 6px !important;
@@ -206,19 +338,19 @@
         
         .es-var-copy:hover {
             transform: scale(1.05) !important;
-            box-shadow: 0 2px 8px rgba(52,199,89,0.3) !important;
+            box-shadow: 0 2px 8px var(--es-shadow) !important;
         }
         
         .es-recent-section {
             margin-top: 8px !important;
             padding-top: 8px !important;
-            border-top: 1px solid rgba(255,255,255,0.08) !important;
+            border-top: 1px solid var(--es-border) !important;
         }
         
         .es-section-title {
             font-size: 10px !important;
             font-weight: 600 !important;
-            color: rgba(255,255,255,0.7) !important;
+            color: var(--es-text-muted) !important;
             margin-bottom: 6px !important;
             text-transform: uppercase !important;
             letter-spacing: 0.3px !important;
@@ -230,10 +362,11 @@
             align-items: center !important;
         }
         
+        .es-floating-theme,
         .es-floating-min {
             background: none !important;
             border: none !important;
-            color: white !important;
+            color: var(--es-text) !important;
             opacity: 0.8 !important;
             cursor: pointer !important;
             font-size: 14px !important;
@@ -242,8 +375,9 @@
             line-height: 1 !important;
         }
         
+        .es-floating-theme:hover,
         .es-floating-min:hover {
-            background: rgba(255,255,255,0.1) !important;
+            background: color-mix(in srgb, var(--es-text) 10%, transparent) !important;
             opacity: 1 !important;
         }
         
@@ -256,26 +390,302 @@
         .es-floating-window.es-minimized .es-floating-content {
             display: none !important;
         }
+        
+        .es-floating-window:focus-visible {
+            outline: 2px solid var(--es-accent) !important;
+            outline-offset: 2px !important;
+            border-radius: 12px !important;
+        }
+        
+        .es-btn:focus-visible,
+        .es-copy-indicator:focus-visible {
+            outline: 2px solid var(--es-accent) !important;
+            outline-offset: 2px !important;
+            border-radius: 8px !important;
+        }
     `;
     
-    // Inject styles
-    const styleSheet = document.createElement('style');
-    styleSheet.textContent = overlayStyles;
-    document.head.appendChild(styleSheet);
+    // Inject theme and overlay styles
+    const themeStyleSheet = document.createElement('style');
+    themeStyleSheet.textContent = themeStyles;
+    document.head.appendChild(themeStyleSheet);
     
-    // Show notification
-    function showNotification(message, duration = 2000) {
-        const notification = document.createElement('div');
-        notification.className = 'es-notification';
-        notification.textContent = message;
-        document.body.appendChild(notification);
-        
-        setTimeout(() => {
-            notification.style.animation = 'esSlideOut 0.3s ease-out forwards';
-            setTimeout(() => notification.remove(), 300);
-        }, duration);
+    const overlayStyleSheet = document.createElement('style');
+    overlayStyleSheet.textContent = overlayStyles;
+    document.head.appendChild(overlayStyleSheet);
+    
+    // ==== Accessibility: ARIA-live region
+    let esLive = document.getElementById('es-aria-live');
+    if (!esLive) {
+        esLive = document.createElement('div');
+        esLive.id = 'es-aria-live';
+        esLive.setAttribute('aria-live', 'polite');
+        esLive.style.position = 'fixed';
+        esLive.style.left = '-9999px';
+        esLive.style.top = '0';
+        document.body.appendChild(esLive);
+    }
+    function announce(msg) { esLive.textContent = msg; }
+    
+    // Professional Toast Notification System
+    let toastContainer = null;
+    let toastCounter = 0;
+    
+    function ensureToastContainer() {
+        if (!toastContainer) {
+            toastContainer = document.createElement('div');
+            toastContainer.className = 'es-toast-container';
+            document.body.appendChild(toastContainer);
+        }
+        return toastContainer;
     }
     
+    function showToast(options) {
+        const {
+            title = '',
+            message = '',
+            type = 'info', // 'success', 'error', 'warning', 'info'
+            duration = 3000,
+            closable = true
+        } = options;
+        
+        // Handle legacy string input
+        if (typeof options === 'string') {
+            return showToast({ message: options, duration: arguments[1] || 3000 });
+        }
+        
+        const container = ensureToastContainer();
+        const toastId = `toast-${++toastCounter}`;
+        
+        // Icon mapping
+        const icons = {
+            success: '✓',
+            error: '✗',
+            warning: '⚠',
+            info: 'ℹ'
+        };
+        
+        const toast = document.createElement('div');
+        toast.className = `es-toast es-toast-${type}`;
+        toast.id = toastId;
+        
+        const icon = document.createElement('div');
+        icon.className = 'es-toast-icon';
+        icon.textContent = icons[type] || icons.info;
+        
+        const content = document.createElement('div');
+        content.className = 'es-toast-content';
+        
+        if (title) {
+            const titleEl = document.createElement('div');
+            titleEl.className = 'es-toast-title';
+            titleEl.textContent = title;
+            content.appendChild(titleEl);
+        }
+        
+        if (message) {
+            const messageEl = document.createElement('div');
+            messageEl.className = 'es-toast-message';
+            messageEl.textContent = message;
+            content.appendChild(messageEl);
+        }
+        
+        toast.appendChild(icon);
+        toast.appendChild(content);
+        
+        if (closable) {
+            const closeBtn = document.createElement('button');
+            closeBtn.className = 'es-toast-close';
+            closeBtn.innerHTML = '×';
+            closeBtn.setAttribute('aria-label', 'Close notification');
+            closeBtn.addEventListener('click', () => hideToast(toastId));
+            toast.appendChild(closeBtn);
+        }
+        
+        container.appendChild(toast);
+        
+        // Announce to screen readers
+        const announcement = title ? `${title}. ${message}` : message;
+        announce(announcement);
+        
+        // Show animation
+        requestAnimationFrame(() => {
+            toast.classList.add('es-toast-show');
+        });
+        
+        // Auto-hide after duration
+        if (duration > 0) {
+            setTimeout(() => hideToast(toastId), duration);
+        }
+        
+        return toastId;
+    }
+    
+    function hideToast(toastId) {
+        const toast = document.getElementById(toastId);
+        if (!toast) return;
+        
+        toast.classList.add('es-toast-hide');
+        toast.classList.remove('es-toast-show');
+        
+        setTimeout(() => {
+            if (toast.parentNode) {
+                toast.parentNode.removeChild(toast);
+            }
+        }, 300);
+    }
+    
+    // Legacy function for backward compatibility
+    function showNotification(message, duration = 2000) {
+        return showToast({ message, duration, type: 'info' });
+    }
+    
+    // ==== Theme Management
+    let currentTheme = 'dark'; // default theme
+    
+    // Load saved theme from storage or detect system preference
+    async function initializeTheme() {
+        try {
+            const result = await chrome.storage.local.get(['es_theme']);
+            if (result.es_theme) {
+                currentTheme = result.es_theme;
+            } else {
+                // Auto-detect system theme preference
+                if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
+                    currentTheme = 'light';
+                }
+            }
+            applyTheme(currentTheme);
+        } catch (e) {
+            // Fallback for non-extension context
+            currentTheme = 'dark';
+            applyTheme(currentTheme);
+        }
+    }
+    
+    function applyTheme(theme) {
+        currentTheme = theme;
+        if (theme === 'light') {
+            document.documentElement.setAttribute('data-es-theme', 'light');
+        } else if (theme === 'gold') {
+            document.documentElement.setAttribute('data-es-theme', 'gold');
+        } else {
+            document.documentElement.removeAttribute('data-es-theme'); // default dark
+        }
+        
+        // Save theme preference
+        try {
+            chrome.storage.local.set({ es_theme: theme });
+        } catch (e) {
+            // Non-extension context, could use localStorage as fallback
+        }
+    }
+    
+    function cycleTheme() {
+        const themes = ['dark', 'light', 'gold'];
+        const currentIndex = themes.indexOf(currentTheme);
+        const nextTheme = themes[(currentIndex + 1) % themes.length];
+        applyTheme(nextTheme);
+        
+        const themeNames = { dark: 'Dark', light: 'Light', gold: 'Gold (Sponsor)' };
+        showToast({
+            title: 'Theme Changed',
+            message: `Switched to ${themeNames[nextTheme]} theme`,
+            type: 'info',
+            duration: 1500
+        });
+    }
+    
+    // Initialize theme on load
+    initializeTheme();
+    
+    // Listen for system theme changes
+    if (window.matchMedia) {
+        window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', (e) => {
+            if (currentTheme === 'auto' || (!currentTheme)) {
+                applyTheme(e.matches ? 'light' : 'dark');
+            }
+        });
+    }
+    
+    // ==== Floating Panel Snap & Nudge Config
+    const FF_SNAP = 8;              // snap margin (px)
+    const FF_NUDGE = 1;             // Alt+Arrow step
+    const FF_NUDGE_FAST = 10;       // Shift+Alt step
+
+    function snapToEdge(win) {
+        const r = win.getBoundingClientRect();
+        const vw = document.documentElement.clientWidth;
+        const vh = document.documentElement.clientHeight;
+
+        // distances to edges
+        const dLeft   = r.left;
+        const dRight  = vw - (r.left + r.width);
+        const dTop    = r.top;
+        const dBottom = vh - (r.top + r.height);
+
+        // snap horizontally
+        if (Math.min(dLeft, dRight) <= 64) {
+            if (dLeft <= dRight) {
+                win.style.left = `${FF_SNAP + window.scrollX}px`;
+                win.style.right = 'auto';
+            } else {
+                win.style.left = 'auto';
+                win.style.right = `${FF_SNAP}px`;
+            }
+        }
+        // snap vertically
+        if (Math.min(dTop, dBottom) <= 64) {
+            if (dTop <= dBottom) {
+                win.style.top = `${FF_SNAP + window.scrollY}px`;
+                win.style.bottom = 'auto';
+            } else {
+                win.style.top = 'auto';
+                win.style.bottom = `${FF_SNAP}px`;
+            }
+        }
+    }
+
+    function clampToViewport(win) {
+        const r = win.getBoundingClientRect();
+        const vw = document.documentElement.clientWidth;
+        const vh = document.documentElement.clientHeight;
+        let left = r.left, top = r.top;
+
+        if (left < FF_SNAP) left = FF_SNAP;
+        if (top < FF_SNAP) top = FF_SNAP;
+        if (left + r.width > vw - FF_SNAP) left = vw - r.width - FF_SNAP;
+        if (top + r.height > vh - FF_SNAP) top = vh - r.height - FF_SNAP;
+
+        win.style.left = `${left + window.scrollX}px`;
+        win.style.top  = `${top  + window.scrollY}px`;
+    }
+
+    function onDragEnd() {
+        clampToViewport(floatingWindow);
+        snapToEdge(floatingWindow);
+        persistFloatingState(floatingWindow);
+    }
+
+    function bindNudgeKeys(win) {
+        win.setAttribute('tabindex', '0'); // focusable
+        win.addEventListener('keydown', (e) => {
+            if (!e.altKey) return;
+            const step = e.shiftKey ? FF_NUDGE_FAST : FF_NUDGE;
+            const r = win.getBoundingClientRect();
+            let left = r.left, top = r.top;
+            if (e.key === 'ArrowLeft')  left -= step;
+            if (e.key === 'ArrowRight') left += step;
+            if (e.key === 'ArrowUp')    top  -= step;
+            if (e.key === 'ArrowDown')  top  += step;
+            win.style.left = `${left + window.scrollX}px`;
+            win.style.top  = `${top  + window.scrollY}px`;
+            clampToViewport(win);
+            e.preventDefault();
+            persistFloatingState(win);
+        });
+    }
+
     // Background-managed floating window persistence
     function readFloatingState() {
         return new Promise(r => chrome.runtime.sendMessage({type:'GET_FLOATING_STATE'}, r));
@@ -304,6 +714,7 @@
             <div class="es-floating-header">
                 <h3 class="es-floating-title">Variables</h3>
                 <div class="es-floating-actions">
+                    <button class="es-floating-theme" title="Cycle Theme (Dark / Light / Gold)">🎨</button>
                     <button class="es-floating-min" title="Minimize / Expand">—</button>
                     <button class="es-floating-close" title="Close">×</button>
                 </div>
@@ -349,7 +760,7 @@
             isDragging = false;
             document.removeEventListener('mousemove', handleDrag);
             document.removeEventListener('mouseup', stopDrag);
-            persistFloatingState(window);
+            onDragEnd();
         }
         
         // Handle resize
@@ -357,6 +768,12 @@
             persistFloatingState(window);
         });
         resizeObserver.observe(window);
+        
+        // Add theme button functionality
+        const themeBtn = window.querySelector('.es-floating-theme');
+        themeBtn.addEventListener('click', () => {
+            cycleTheme();
+        });
         
         // Add minimize functionality
         const minBtn = window.querySelector('.es-floating-min');
@@ -370,8 +787,27 @@
             chrome.runtime.sendMessage({type:'TOGGLE_FLOATING_VARS'}).catch(()=>{});
         });
         
+        // Add accessibility attributes
+        window.setAttribute('role', 'dialog');
+        window.setAttribute('aria-label', 'Element Snapper Variables Panel');
+        window.setAttribute('tabindex', '0');
+        
+        // Add ARIA labels to buttons
+        const themeBtn = window.querySelector('.es-floating-theme');
+        const minBtn = window.querySelector('.es-floating-min');
+        const closeBtn = window.querySelector('.es-floating-close');
+        themeBtn.classList.add('es-btn');
+        themeBtn.setAttribute('aria-label', 'Cycle theme: dark, light, or gold');
+        minBtn.classList.add('es-btn');
+        minBtn.setAttribute('aria-label', 'Minimize or expand');
+        closeBtn.classList.add('es-btn');
+        closeBtn.setAttribute('aria-label', 'Close');
+        
         document.body.appendChild(window);
         floatingWindow = window;
+        
+        // Enable keyboard nudging
+        bindNudgeKeys(window);
         
         // Save initial state
         persistFloatingState(window);
@@ -410,7 +846,12 @@
             item.querySelector('.es-var-copy').addEventListener('click', async () => {
                 try {
                     await navigator.clipboard.writeText(variable.value);
-                    showNotification(`Copied ${variable.name} to clipboard`);
+                    showToast({
+                        title: 'Copied!',
+                        message: `${variable.name} copied to clipboard`,
+                        type: 'success',
+                        duration: 2000
+                    });
                 } catch (e) {
                     // Fallback for older browsers
                     const textarea = document.createElement('textarea');
@@ -419,7 +860,12 @@
                     textarea.select();
                     document.execCommand('copy');
                     document.body.removeChild(textarea);
-                    showNotification(`Copied ${variable.name} to clipboard`);
+                    showToast({
+                        title: 'Copied!',
+                        message: `${variable.name} copied to clipboard`,
+                        type: 'success',
+                        duration: 2000
+                    });
                 }
             });
             
@@ -448,7 +894,12 @@
             item.querySelector('.es-var-copy').addEventListener('click', async () => {
                 try {
                     await navigator.clipboard.writeText(varData.newValue);
-                    showNotification(`Copied ${varData.name} to clipboard`);
+                    showToast({
+                        title: 'Copied!',
+                        message: `${varData.name} copied to clipboard`,
+                        type: 'success',
+                        duration: 2000
+                    });
                 } catch (e) {
                     const textarea = document.createElement('textarea');
                     textarea.value = varData.newValue;
@@ -456,7 +907,12 @@
                     textarea.select();
                     document.execCommand('copy');
                     document.body.removeChild(textarea);
-                    showNotification(`Copied ${varData.name} to clipboard`);
+                    showToast({
+                        title: 'Copied!',
+                        message: `${varData.name} copied to clipboard`,
+                        type: 'success',
+                        duration: 2000
+                    });
                 }
             });
             
@@ -505,7 +961,11 @@
         // Variable name only in tooltip
         indicator.title = variable.name;
         
-        indicator.addEventListener('click', async (e) => {
+        // Accessibility attributes
+        indicator.setAttribute('aria-label', `Copy ${variable.name}`);
+        indicator.setAttribute('tabindex', '0');
+        
+        const handleCopy = async (e) => {
             e.preventDefault();
             e.stopPropagation();
             
@@ -519,12 +979,31 @@
                         type: 'UPDATE_VARIABLE_VALUE',
                         payload: { variableId: variable.id, newValue: currentValue }
                     });
-                    showNotification(`Updated ${variable.name}: "${currentValue}"`);
+                    showToast({
+                        title: 'Variable Updated',
+                        message: `${variable.name}: "${currentValue}"`,
+                        type: 'success',
+                        duration: 2500
+                    });
                 } catch (e) {
                     console.error('Failed to update variable:', e);
                 }
             } else {
-                showNotification(`${variable.name} is up to date`);
+                showToast({
+                    title: 'No Change',
+                    message: `${variable.name} is already up to date`,
+                    type: 'info',
+                    duration: 2000
+                });
+            }
+        };
+        
+        indicator.addEventListener('click', handleCopy);
+        
+        // Keyboard support
+        indicator.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+                handleCopy(e);
             }
         });
         
@@ -556,14 +1035,24 @@
                 if (window.__ES_UTILS__?.setElementValue) {
                     const success = window.__ES_UTILS__.setElementValue(element, suggestion.value);
                     if (success) {
-                        showNotification(`Pasted ${suggestion.varName || 'value'}`);
+                        showToast({
+                            title: 'Pasted!',
+                            message: `${suggestion.varName || 'value'} pasted successfully`,
+                            type: 'success',
+                            duration: 2000
+                        });
                     }
                 } else {
                     // Fallback
                     element.value = suggestion.value;
                     element.dispatchEvent(new Event('input', { bubbles: true }));
                     element.dispatchEvent(new Event('change', { bubbles: true }));
-                    showNotification(`Pasted ${suggestion.varName || 'value'}`);
+                    showToast({
+                        title: 'Pasted!',
+                        message: `${suggestion.varName || 'value'} pasted successfully`,
+                        type: 'success',
+                        duration: 2000
+                    });
                 }
             });
         } else {
@@ -629,7 +1118,12 @@
                             element.dispatchEvent(new Event('input', { bubbles: true }));
                             element.dispatchEvent(new Event('change', { bubbles: true }));
                         }
-                        showNotification(`Pasted ${suggestion.varName || 'value'}`);
+                        showToast({
+                            title: 'Pasted!',
+                            message: `${suggestion.varName || 'value'} pasted successfully`,
+                            type: 'success',
+                            duration: 2000
+                        });
                         dropdown.remove();
                     });
                     
@@ -659,6 +1153,45 @@
         return button;
     }
     
+    // ==== Adaptive Copy Icon Placement
+    function bestCornerPosition(rect, size = 18, pad = 2) {
+        // candidate corners: BR, TR, BL, TL
+        const sx = window.scrollX, sy = window.scrollY;
+        const cands = [
+            { x: rect.right + sx + pad, y: rect.bottom + sy + pad },            // BR
+            { x: rect.right + sx + pad, y: rect.top    + sy - pad - size },     // TR
+            { x: rect.left  + sx - pad - size, y: rect.bottom + sy + pad },     // BL
+            { x: rect.left  + sx - pad - size, y: rect.top    + sy - pad - size } // TL
+        ];
+        const vw = document.documentElement.clientWidth  + sx;
+        const vh = document.documentElement.clientHeight + sy;
+
+        function inViewport(p) {
+            return p.x >= sx && p.y >= sy && (p.x + size) <= vw && (p.y + size) <= vh;
+        }
+        function crowded(p) {
+            // sample the center; if something else sits there, prefer another corner
+            const cx = p.x - sx + size / 2, cy = p.y - sy + size / 2;
+            const el = document.elementFromPoint(cx, cy);
+            // ok if it's body/html or nothing; we avoid overlay collisions by z-index
+            return el && el !== document.body && el !== document.documentElement;
+        }
+
+        for (const p of cands) {
+            if (inViewport(p) && !crowded(p)) return p;
+        }
+        // fallback to first in-viewport candidate
+        return cands.find(inViewport) || cands[0];
+    }
+
+    function positionCopyIndicator(btn, targetEl) {
+        const rect = targetEl.getBoundingClientRect();
+        const size = 18;
+        const p = bestCornerPosition(rect, size, 2);
+        btn.style.left = `${p.x}px`;
+        btn.style.top  = `${p.y}px`;
+    }
+
     // Position overlay element relative to target
     function positionOverlay(overlay, target, type = 'paste') {
         const rect = target.getBoundingClientRect();
@@ -727,8 +1260,8 @@
                             document.body.appendChild(indicator);
                             overlayElements.set(element, indicator);
                             
-                            // Position the indicator
-                            positionOverlay(indicator, element, 'copy');
+                            // Position the indicator using adaptive placement
+                            positionCopyIndicator(indicator, element);
                             console.log('Added copy indicator for:', variable.name);
                         } else {
                             console.log('Site pattern does not match current URL');
@@ -855,9 +1388,11 @@
     function repositionOverlays() {
         overlayElements.forEach((overlay, target) => {
             if (document.contains(target)) {
-                // Determine overlay type based on CSS class
-                const type = overlay.classList.contains('es-copy-indicator') ? 'copy' : 'paste';
-                positionOverlay(overlay, target, type);
+                if (overlay.classList.contains('es-copy-indicator')) {
+                    positionCopyIndicator(overlay, target);
+                } else {
+                    positionOverlay(overlay, target, 'paste');
+                }
             } else {
                 overlay.remove();
                 overlayElements.delete(target);
