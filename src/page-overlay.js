@@ -1,4 +1,4 @@
-// Interactive page overlay system - shows copy/paste controls directly on elements
+// Interactive page overlay system - shows copy/paste controls only on profiled elements
 (function() {
     if (window.__ES_PAGE_OVERLAY_ACTIVE__) return;
     window.__ES_PAGE_OVERLAY_ACTIVE__ = true;
@@ -10,30 +10,34 @@
     let recentVars = [];
     let isMainTab = false; // Only one tab will own the floating window
     
-    // Styles for the overlay controls
+    // Styles for the overlay controls - STREAMLINED VERSION
     const overlayStyles = `
         .es-copy-indicator {
             position: absolute !important;
-            width: 18px !important;
-            height: 18px !important;
-            border-radius: 50% !important;
-            background: linear-gradient(135deg, #6B5BFF, #FF4D8D) !important;
-            color: #fff !important;
+            background: linear-gradient(135deg, #4f8cff 0%, #6aa0ff 100%) !important;
+            color: white !important;
             border: none !important;
+            border-radius: 50% !important;
+            padding: 4px !important;
+            font-size: 10px !important;
+            font-family: system-ui, sans-serif !important;
+            font-weight: 500 !important;
+            cursor: pointer !important;
+            z-index: 2147483646 !important;
+            box-shadow: 0 1px 4px rgba(79,140,255,0.4) !important;
+            transition: all 0.2s ease !important;
+            pointer-events: auto !important;
             display: flex !important;
             align-items: center !important;
             justify-content: center !important;
-            padding: 0 !important;
-            cursor: pointer !important;
-            pointer-events: auto !important;
-            z-index: 2147483646 !important;
-            box-shadow: 0 1px 4px rgba(0,0,0,.25) !important;
-            transition: all 0.2s ease !important;
+            width: 20px !important;
+            height: 20px !important;
+            backdrop-filter: blur(8px) !important;
         }
         
         .es-copy-indicator:hover {
             transform: scale(1.1) !important;
-            box-shadow: 0 2px 8px rgba(0,0,0,.35) !important;
+            box-shadow: 0 2px 8px rgba(79,140,255,0.5) !important;
         }
         
         .es-paste-button {
@@ -223,39 +227,6 @@
             text-transform: uppercase !important;
             letter-spacing: 0.3px !important;
         }
-        
-        .es-floating-actions {
-            display: flex !important;
-            gap: 6px !important;
-            align-items: center !important;
-        }
-        
-        .es-floating-min {
-            background: none !important;
-            border: none !important;
-            color: white !important;
-            opacity: 0.8 !important;
-            cursor: pointer !important;
-            font-size: 14px !important;
-            padding: 2px !important;
-            border-radius: 3px !important;
-            line-height: 1 !important;
-        }
-        
-        .es-floating-min:hover {
-            background: rgba(255,255,255,0.1) !important;
-            opacity: 1 !important;
-        }
-        
-        .es-floating-window.es-minimized {
-            width: 220px !important;
-            height: auto !important;
-            overflow: hidden !important;
-        }
-        
-        .es-floating-window.es-minimized .es-floating-content {
-            display: none !important;
-        }
     `;
     
     // Inject styles
@@ -276,25 +247,46 @@
         }, duration);
     }
     
-    // Background-managed floating window persistence
-    function readFloatingState() {
-        return new Promise(r => chrome.runtime.sendMessage({type:'GET_FLOATING_STATE'}, r));
+    // Cross-tab floating window management
+    const FLOATING_WINDOW_KEY = 'es-floating-window-state';
+    const MAIN_TAB_KEY = 'es-main-tab-id';
+    const TAB_ID = Math.random().toString(36).substr(2, 9); // Unique tab identifier
+    
+    // Check if this tab should own the floating window
+    function determineMainTab() {
+        const mainTabId = localStorage.getItem(MAIN_TAB_KEY);
+        if (!mainTabId || mainTabId === TAB_ID) {
+            localStorage.setItem(MAIN_TAB_KEY, TAB_ID);
+            isMainTab = true;
+        }
     }
     
-    function persistFloatingState(win) {
-        const rect = win.getBoundingClientRect();
+    // Save window state to localStorage
+    function saveWindowState(windowEl) {
+        if (!windowEl) return;
+        const rect = windowEl.getBoundingClientRect();
         const state = {
-            left: win.style.left || (rect.left + 'px'),
-            top:  win.style.top  || (rect.top + 'px'),
-            width: win.style.width || '',
-            height: win.style.height || '',
-            minimized: win.classList.contains('es-minimized'),
-            visible: true
+            visible: true,
+            left: windowEl.style.left || (rect.left + 'px'),
+            top: windowEl.style.top || (rect.top + 'px'),
+            width: windowEl.style.width || '240px',
+            height: windowEl.style.height || 'auto',
+            timestamp: Date.now()
         };
-        chrome.runtime.sendMessage({type:'SET_FLOATING_STATE', payload: state}).catch(()=>{});
+        localStorage.setItem(FLOATING_WINDOW_KEY, JSON.stringify(state));
     }
     
-    // Create floating vars window
+    // Load window state from localStorage
+    function loadWindowState() {
+        try {
+            const stored = localStorage.getItem(FLOATING_WINDOW_KEY);
+            return stored ? JSON.parse(stored) : null;
+        } catch {
+            return null;
+        }
+    }
+    
+    // Create floating vars window - CROSS-TAB PERSISTENT VERSION
     function createFloatingWindow() {
         if (floatingWindow) return floatingWindow;
         
@@ -303,10 +295,7 @@
         window.innerHTML = `
             <div class="es-floating-header">
                 <h3 class="es-floating-title">Variables</h3>
-                <div class="es-floating-actions">
-                    <button class="es-floating-min" title="Minimize / Expand">—</button>
-                    <button class="es-floating-close" title="Close">×</button>
-                </div>
+                <button class="es-floating-close">×</button>
             </div>
             <div class="es-floating-content">
                 <div class="es-vars-list"></div>
@@ -317,7 +306,15 @@
             </div>
         `;
         
-        // State will be restored by the SHOW_FLOATING_VARS message handler
+        // Restore position from localStorage
+        const savedState = loadWindowState();
+        if (savedState) {
+            window.style.left = savedState.left;
+            window.style.top = savedState.top;
+            window.style.right = 'auto';
+            if (savedState.width !== 'auto') window.style.width = savedState.width;
+            if (savedState.height !== 'auto') window.style.height = savedState.height;
+        }
         
         // Make draggable
         let isDragging = false;
@@ -342,39 +339,39 @@
             window.style.right = 'auto';
             
             // Save position while dragging
-            persistFloatingState(window);
+            saveWindowState(window);
         }
         
         function stopDrag() {
             isDragging = false;
             document.removeEventListener('mousemove', handleDrag);
             document.removeEventListener('mouseup', stopDrag);
-            persistFloatingState(window);
+            saveWindowState(window);
         }
         
         // Handle resize
         const resizeObserver = new ResizeObserver(() => {
-            persistFloatingState(window);
+            saveWindowState(window);
         });
         resizeObserver.observe(window);
         
-        // Add minimize functionality
-        const minBtn = window.querySelector('.es-floating-min');
-        minBtn.addEventListener('click', () => {
-            window.classList.toggle('es-minimized');
-            persistFloatingState(window);           // save minimized state
-        });
-        
         // Close button
         window.querySelector('.es-floating-close').addEventListener('click', () => {
-            chrome.runtime.sendMessage({type:'TOGGLE_FLOATING_VARS'}).catch(()=>{});
+            window.remove();
+            floatingWindow = null;
+            isMainTab = false;
+            
+            // Clear main tab ownership and hide state
+            localStorage.removeItem(MAIN_TAB_KEY);
+            localStorage.setItem(FLOATING_WINDOW_KEY, JSON.stringify({ visible: false, timestamp: Date.now() }));
+            localStorage.setItem('es-floating-window-auto-show', 'false');
         });
         
         document.body.appendChild(window);
         floatingWindow = window;
         
         // Save initial state
-        persistFloatingState(window);
+        saveWindowState(window);
         
         return window;
     }
@@ -497,13 +494,12 @@
         const indicator = document.createElement('button');
         indicator.className = 'es-copy-indicator';
         indicator.innerHTML = `
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
                 <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
             </svg>
         `;
         
-        // Variable name only in tooltip
-        indicator.title = variable.name;
+        indicator.title = `Copy ${variable.name}: "${variable.value}"`;
         
         indicator.addEventListener('click', async (e) => {
             e.preventDefault();
@@ -662,30 +658,23 @@
     // Position overlay element relative to target
     function positionOverlay(overlay, target, type = 'paste') {
         const rect = target.getBoundingClientRect();
-        const sx = window.pageXOffset || document.documentElement.scrollLeft;
-        const sy = window.pageYOffset || document.documentElement.scrollTop;
+        const scrollX = window.pageXOffset || document.documentElement.scrollLeft;
+        const scrollY = window.pageYOffset || document.documentElement.scrollTop;
         
         if (type === 'copy') {
-            const pad = 2;             // hug the border
-            const size = 18;           // icon size
-            overlay.style.left = (rect.right + sx + pad) + 'px';
-            overlay.style.top  = (rect.bottom + sy + pad) + 'px';
-            
-            // Keep fully on-screen
-            const maxLeft = sx + document.documentElement.clientWidth  - size - 2;
-            const maxTop  = sy + document.documentElement.clientHeight - size - 2;
-            overlay.style.left = Math.min(parseFloat(overlay.style.left), maxLeft) + 'px';
-            overlay.style.top  = Math.min(parseFloat(overlay.style.top),  maxTop)  + 'px';
+            // Position copy indicator on bottom-right border (centered on the border)
+            overlay.style.left = (rect.right + scrollX - 10) + 'px'; // Half the width of the 20px button
+            overlay.style.top = (rect.bottom + scrollY - 10) + 'px';  // Half the height of the 20px button
         } else {
             // Default position for paste buttons (top-right, outside element)
-            overlay.style.left = (rect.right + sx + 6) + 'px';
-            overlay.style.top = (rect.top + sy - 6) + 'px';
+            overlay.style.left = (rect.right + scrollX - overlay.offsetWidth + 8) + 'px';
+            overlay.style.top = (rect.top + scrollY - 8) + 'px';
         }
     }
     
-    // Update overlays based on current data
+    // Update overlays based on current data - PROFILE FILTERED VERSION
     async function updateOverlays() {
-        console.log('updateOverlays called, enabled:', isEnabled, 'data:', currentData);
+        console.log('updateOverlays called (PROFILE FILTERED), enabled:', isEnabled, 'data:', currentData);
         if (!isEnabled) return;
         
         // Clear existing overlays
@@ -699,12 +688,11 @@
         
         const currentUrl = location.href;
         
-        // Add copy indicators for tracked elements
+        // Add copy indicators for tracked elements (variables with source selectors)
         console.log('Processing variables:', Object.keys(currentData.vars).length);
         Object.values(currentData.vars).forEach(variable => {
             console.log('Processing variable:', variable.name, 'sourceSelector:', variable.sourceSelector, 'sourceSiteId:', variable.sourceSiteId);
             if (variable.sourceSelector) {
-                // Try to find element regardless of site matching for better global functionality
                 try {
                     const element = document.querySelector(variable.sourceSelector);
                     console.log('Found element for selector:', variable.sourceSelector, element);
@@ -742,7 +730,7 @@
             }
         });
         
-        // Only add paste buttons for form fields that have profile mappings
+        // PROFILE FILTERED PASTE BUTTONS - Only show for elements defined in profiles
         console.log('Processing profiles for paste buttons...');
         
         // Find matching profiles for current URL
@@ -885,10 +873,6 @@
                 document.querySelectorAll('.es-element-highlight, .es-paste-highlight').forEach(el => {
                     el.classList.remove('es-element-highlight', 'es-paste-highlight');
                 });
-                if (floatingWindow) {
-                    floatingWindow.remove();
-                    floatingWindow = null;
-                }
             }
         } else if (msg.type === 'VARIABLE_UPDATED') {
             // Update variable in local data and refresh overlays
@@ -898,22 +882,45 @@
                 await updateOverlays();
             }
         } else if (msg.type === 'SHOW_FLOATING_VARS') {
-            if (!floatingWindow) createFloatingWindow();
-            const state = msg.payload || (await readFloatingState());
-            if (state) {
-                if (state.left)  { floatingWindow.style.left = state.left; floatingWindow.style.right = 'auto'; }
-                if (state.top)   floatingWindow.style.top  = state.top;
-                if (state.width) floatingWindow.style.width = state.width;
-                if (state.height && state.height !== 'auto') floatingWindow.style.height = state.height;
-                floatingWindow.classList.toggle('es-minimized', !!state.minimized);
+            // Determine if this tab should handle the window
+            determineMainTab();
+            if (isMainTab) {
+                createFloatingWindow();
+                updateFloatingWindow();
             }
-            updateFloatingWindow();
-        } else if (msg.type === 'HIDE_FLOATING_VARS') {
-            if (floatingWindow) { floatingWindow.remove(); floatingWindow = null; }
+            // Remember that user wants to see it
+            localStorage.setItem('es-floating-window-auto-show', 'true');
         }
     });
     
-    // Background service manages cross-tab behavior - no localStorage needed
+    // Listen for cross-tab window state changes
+    window.addEventListener('storage', (e) => {
+        if (e.key === FLOATING_WINDOW_KEY) {
+            const state = loadWindowState();
+            if (state && state.visible && !floatingWindow && isMainTab) {
+                // Another tab showed the window, take over if we're main tab
+                createFloatingWindow();
+                updateFloatingWindow();
+            } else if (state && !state.visible && floatingWindow) {
+                // Another tab closed the window
+                floatingWindow.remove();
+                floatingWindow = null;
+                isMainTab = false;
+            }
+        } else if (e.key === MAIN_TAB_KEY) {
+            // Check if we should become the main tab
+            determineMainTab();
+        }
+    });
+    
+    // Clean up on tab close
+    window.addEventListener('beforeunload', () => {
+        const currentMainTab = localStorage.getItem(MAIN_TAB_KEY);
+        if (currentMainTab === TAB_ID) {
+            // We're closing the main tab, clear ownership
+            localStorage.removeItem(MAIN_TAB_KEY);
+        }
+    });
     
     // Request initial data with retry logic
     function initializeOverlay() {
@@ -927,16 +934,34 @@
             if (response) {
                 currentData = response.data;
                 isEnabled = response.enabled;
-                console.log('Page overlay initialized:', { 
+                console.log('PROFILE FILTERED page overlay initialized:', { 
                     enabled: isEnabled, 
                     vars: Object.keys(currentData.vars).length,
                     sites: Object.keys(currentData.sites).length,
                     profiles: Object.keys(currentData.profiles).length
                 });
                 
+                // Determine if this tab should own the floating window
+                determineMainTab();
+                
                 if (isEnabled) {
                     updateOverlays();
-                    // Floating window state is managed by background service
+                    
+                    // Check if floating window should be visible
+                    const windowState = loadWindowState();
+                    const shouldAutoShow = localStorage.getItem('es-floating-window-auto-show') !== 'false';
+                    
+                    if (shouldAutoShow && Object.keys(currentData.vars).length > 0) {
+                        if (windowState && windowState.visible && isMainTab) {
+                            // Restore existing window
+                            createFloatingWindow();
+                            updateFloatingWindow();
+                        } else if (!windowState && isMainTab) {
+                            // Create new window
+                            createFloatingWindow();
+                            updateFloatingWindow();
+                        }
+                    }
                 }
             }
         });
@@ -978,7 +1003,5 @@
         subtree: true
     });
     
-    console.log('Element Snapper page overlay initialized');
-    console.log('Initial data:', currentData);
-    console.log('Overlay enabled:', isEnabled);
+    console.log('Element Snapper PROFILE FILTERED page overlay initialized');
 })();

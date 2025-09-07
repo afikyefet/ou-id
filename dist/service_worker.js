@@ -8,6 +8,11 @@ const STORAGE_KEYS = {
     OVERLAY_ENABLED: 'overlayEnabled'  // boolean
 };
 
+// Floating window cross-tab management
+let floatingVisible = false;
+let floatingState = { left:'', top:'', width:'', height:'', minimized:false, visible:false };
+let floatingTabId = null;
+
 async function getActiveTabId(fallback = true) {
     // Returns the active tab id in the current window, or throws if none.
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
@@ -16,6 +21,20 @@ async function getActiveTabId(fallback = true) {
         return undefined;
     }
     return tab.id;
+}
+
+async function showFloatingOn(tabId) {
+    try {
+        await ensureContentScript(tabId);
+        await chrome.tabs.sendMessage(tabId, { type:'SHOW_FLOATING_VARS', payload: floatingState });
+        floatingTabId = tabId;
+    } catch (_) {}
+}
+
+async function hideFloatingOn(tabId) {
+    try { 
+        await chrome.tabs.sendMessage(tabId, { type:'HIDE_FLOATING_VARS' }); 
+    } catch(_) {}
 }
 
 // Check if content script is ready and inject if needed
@@ -181,16 +200,27 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                 
                 sendResponse({ ok: true });
             }
-            else if (msg.type === 'SHOW_FLOATING_VARS') {
-                // Broadcast to all tabs in parallel (faster)
-                const tabs = await chrome.tabs.query({});
-                const promises = tabs.map(tab => 
-                    chrome.tabs.sendMessage(tab.id, {
-                        type: 'SHOW_FLOATING_VARS'
-                    }).catch(() => {}) // Ignore errors silently
-                );
-                await Promise.allSettled(promises);
-                sendResponse({ ok: true });
+            else if (msg.type === 'SET_FLOATING_STATE') {
+                floatingState = { ...floatingState, ...(msg.payload||{}) };
+                await chrome.storage.local.set({ floatingState });
+                sendResponse({ ok:true });
+            }
+            else if (msg.type === 'GET_FLOATING_STATE') {
+                const { floatingState: saved } = await chrome.storage.local.get('floatingState');
+                sendResponse(saved || floatingState);
+            }
+            else if (msg.type === 'TOGGLE_FLOATING_VARS') {
+                floatingVisible = !floatingVisible;
+                await chrome.storage.local.set({ floatingVisible });
+                const activeTabId = sender?.tab?.id ?? await getActiveTabId();
+                if (floatingVisible) {
+                    if (floatingTabId && floatingTabId !== activeTabId) await hideFloatingOn(floatingTabId);
+                    await showFloatingOn(activeTabId);
+                } else {
+                    if (floatingTabId) await hideFloatingOn(floatingTabId);
+                    floatingTabId = null;
+                }
+                sendResponse({ ok:true, visible:floatingVisible });
             }
             else if (msg.type === 'UPDATE_VARIABLE_VALUE') {
                 const { variableId, newValue } = msg.payload;
@@ -409,4 +439,22 @@ chrome.storage.onChanged.addListener(async (changes, areaName) => {
             // Ignore errors if tabs don't respond
         }
     }
+});
+
+// Follow the active tab with floating window
+chrome.tabs.onActivated.addListener(async ({ tabId }) => {
+    const { floatingVisible: vis } = await chrome.storage.local.get('floatingVisible');
+    floatingVisible = !!vis;
+    if (!floatingVisible) return;
+    if (floatingTabId && floatingTabId !== tabId) await hideFloatingOn(floatingTabId);
+    await showFloatingOn(tabId);
+});
+
+chrome.windows.onFocusChanged.addListener(async () => {
+    const tabId = await getActiveTabId(false);
+    const { floatingVisible: vis } = await chrome.storage.local.get('floatingVisible');
+    floatingVisible = !!vis;
+    if (!floatingVisible || !tabId) return;
+    if (floatingTabId && floatingTabId !== tabId) await hideFloatingOn(floatingTabId);
+    await showFloatingOn(tabId);
 });
