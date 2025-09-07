@@ -1,15 +1,22 @@
 // Interactive page overlay system - shows copy/paste controls directly on elements
-(function() {
+(function () {
     if (window.__ES_PAGE_OVERLAY_ACTIVE__) return;
     window.__ES_PAGE_OVERLAY_ACTIVE__ = true;
-    
+
     let overlayElements = new Map();
     let currentData = { vars: {}, sites: {}, profiles: {} };
     let isEnabled = false;
     let floatingWindow = null;
     let recentVars = [];
     let isMainTab = false; // Only one tab will own the floating window
-    
+
+    // Recent copy state for 20s paste offers
+    const RECENT_TTL_MS = 20000;  // 20 seconds
+    let recentCopy = null;        // { varId, varName, value, ts }
+    let recentTimer = null;       // timeout handle
+    let pasteChip = null;         // DOM for the chip
+    let focusedEl = null;         // currently focused editable element
+
     // CSS Custom Properties for theming
     const themeStyles = `
         :root {
@@ -51,7 +58,7 @@
             --es-shadow: rgba(0,0,0,0.4);
         }
     `;
-    
+
     // Styles for the overlay controls
     const overlayStyles = `
         .es-copy-indicator {
@@ -404,16 +411,16 @@
             border-radius: 8px !important;
         }
     `;
-    
+
     // Inject theme and overlay styles
     const themeStyleSheet = document.createElement('style');
     themeStyleSheet.textContent = themeStyles;
     document.head.appendChild(themeStyleSheet);
-    
+
     const overlayStyleSheet = document.createElement('style');
     overlayStyleSheet.textContent = overlayStyles;
     document.head.appendChild(overlayStyleSheet);
-    
+
     // ==== Accessibility: ARIA-live region
     let esLive = document.getElementById('es-aria-live');
     if (!esLive) {
@@ -426,11 +433,11 @@
         document.body.appendChild(esLive);
     }
     function announce(msg) { esLive.textContent = msg; }
-    
+
     // Professional Toast Notification System
     let toastContainer = null;
     let toastCounter = 0;
-    
+
     function ensureToastContainer() {
         if (!toastContainer) {
             toastContainer = document.createElement('div');
@@ -439,7 +446,7 @@
         }
         return toastContainer;
     }
-    
+
     function showToast(options) {
         const {
             title = '',
@@ -448,15 +455,15 @@
             duration = 3000,
             closable = true
         } = options;
-        
+
         // Handle legacy string input
         if (typeof options === 'string') {
             return showToast({ message: options, duration: arguments[1] || 3000 });
         }
-        
+
         const container = ensureToastContainer();
         const toastId = `toast-${++toastCounter}`;
-        
+
         // Icon mapping
         const icons = {
             success: '✓',
@@ -464,35 +471,35 @@
             warning: '⚠',
             info: 'ℹ'
         };
-        
+
         const toast = document.createElement('div');
         toast.className = `es-toast es-toast-${type}`;
         toast.id = toastId;
-        
+
         const icon = document.createElement('div');
         icon.className = 'es-toast-icon';
         icon.textContent = icons[type] || icons.info;
-        
+
         const content = document.createElement('div');
         content.className = 'es-toast-content';
-        
+
         if (title) {
             const titleEl = document.createElement('div');
             titleEl.className = 'es-toast-title';
             titleEl.textContent = title;
             content.appendChild(titleEl);
         }
-        
+
         if (message) {
             const messageEl = document.createElement('div');
             messageEl.className = 'es-toast-message';
             messageEl.textContent = message;
             content.appendChild(messageEl);
         }
-        
+
         toast.appendChild(icon);
         toast.appendChild(content);
-        
+
         if (closable) {
             const closeBtn = document.createElement('button');
             closeBtn.className = 'es-toast-close';
@@ -501,48 +508,48 @@
             closeBtn.addEventListener('click', () => hideToast(toastId));
             toast.appendChild(closeBtn);
         }
-        
+
         container.appendChild(toast);
-        
+
         // Announce to screen readers
         const announcement = title ? `${title}. ${message}` : message;
         announce(announcement);
-        
+
         // Show animation
         requestAnimationFrame(() => {
             toast.classList.add('es-toast-show');
         });
-        
+
         // Auto-hide after duration
         if (duration > 0) {
             setTimeout(() => hideToast(toastId), duration);
         }
-        
+
         return toastId;
     }
-    
+
     function hideToast(toastId) {
         const toast = document.getElementById(toastId);
         if (!toast) return;
-        
+
         toast.classList.add('es-toast-hide');
         toast.classList.remove('es-toast-show');
-        
+
         setTimeout(() => {
             if (toast.parentNode) {
                 toast.parentNode.removeChild(toast);
             }
         }, 300);
     }
-    
+
     // Legacy function for backward compatibility
     function showNotification(message, duration = 2000) {
         return showToast({ message, duration, type: 'info' });
     }
-    
+
     // ==== Theme Management
     let currentTheme = 'dark'; // default theme
-    
+
     // Load saved theme from storage or detect system preference
     async function initializeTheme() {
         try {
@@ -562,7 +569,7 @@
             applyTheme(currentTheme);
         }
     }
-    
+
     function applyTheme(theme) {
         currentTheme = theme;
         if (theme === 'light') {
@@ -572,7 +579,7 @@
         } else {
             document.documentElement.removeAttribute('data-es-theme'); // default dark
         }
-        
+
         // Save theme preference
         try {
             chrome.storage.local.set({ es_theme: theme });
@@ -580,13 +587,13 @@
             // Non-extension context, could use localStorage as fallback
         }
     }
-    
+
     function cycleTheme() {
         const themes = ['dark', 'light', 'gold'];
         const currentIndex = themes.indexOf(currentTheme);
         const nextTheme = themes[(currentIndex + 1) % themes.length];
         applyTheme(nextTheme);
-        
+
         const themeNames = { dark: 'Dark', light: 'Light', gold: 'Gold (Sponsor)' };
         showToast({
             title: 'Theme Changed',
@@ -595,10 +602,10 @@
             duration: 1500
         });
     }
-    
+
     // Initialize theme on load
     initializeTheme();
-    
+
     // Listen for system theme changes
     if (window.matchMedia) {
         window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', (e) => {
@@ -607,7 +614,7 @@
             }
         });
     }
-    
+
     // ==== Floating Panel Snap & Nudge Config
     const FF_SNAP = 8;              // snap margin (px)
     const FF_NUDGE = 1;             // Alt+Arrow step
@@ -619,9 +626,9 @@
         const vh = document.documentElement.clientHeight;
 
         // distances to edges
-        const dLeft   = r.left;
-        const dRight  = vw - (r.left + r.width);
-        const dTop    = r.top;
+        const dLeft = r.left;
+        const dRight = vw - (r.left + r.width);
+        const dTop = r.top;
         const dBottom = vh - (r.top + r.height);
 
         // snap horizontally
@@ -658,7 +665,7 @@
         if (top + r.height > vh - FF_SNAP) top = vh - r.height - FF_SNAP;
 
         win.style.left = `${left + window.scrollX}px`;
-        win.style.top  = `${top  + window.scrollY}px`;
+        win.style.top = `${top + window.scrollY}px`;
     }
 
     function onDragEnd() {
@@ -674,12 +681,12 @@
             const step = e.shiftKey ? FF_NUDGE_FAST : FF_NUDGE;
             const r = win.getBoundingClientRect();
             let left = r.left, top = r.top;
-            if (e.key === 'ArrowLeft')  left -= step;
+            if (e.key === 'ArrowLeft') left -= step;
             if (e.key === 'ArrowRight') left += step;
-            if (e.key === 'ArrowUp')    top  -= step;
-            if (e.key === 'ArrowDown')  top  += step;
+            if (e.key === 'ArrowUp') top -= step;
+            if (e.key === 'ArrowDown') top += step;
             win.style.left = `${left + window.scrollX}px`;
-            win.style.top  = `${top  + window.scrollY}px`;
+            win.style.top = `${top + window.scrollY}px`;
             clampToViewport(win);
             e.preventDefault();
             persistFloatingState(win);
@@ -688,144 +695,136 @@
 
     // Background-managed floating window persistence
     function readFloatingState() {
-        return new Promise(r => chrome.runtime.sendMessage({type:'GET_FLOATING_STATE'}, r));
+        return new Promise(r => chrome.runtime.sendMessage({ type: 'GET_FLOATING_STATE' }, r));
     }
-    
+
     function persistFloatingState(win) {
         const rect = win.getBoundingClientRect();
         const state = {
             left: win.style.left || (rect.left + 'px'),
-            top:  win.style.top  || (rect.top + 'px'),
+            top: win.style.top || (rect.top + 'px'),
             width: win.style.width || '',
             height: win.style.height || '',
             minimized: win.classList.contains('es-minimized'),
             visible: true
         };
-        chrome.runtime.sendMessage({type:'SET_FLOATING_STATE', payload: state}).catch(()=>{});
+        chrome.runtime.sendMessage({ type: 'SET_FLOATING_STATE', payload: state }).catch(() => { });
     }
-    
-    // Create floating vars window
+
+    // Create floating vars window (fixed)
     function createFloatingWindow() {
         if (floatingWindow) return floatingWindow;
-        
-        const window = document.createElement('div');
-        window.className = 'es-floating-window';
-        window.innerHTML = `
-            <div class="es-floating-header">
-                <h3 class="es-floating-title">Variables</h3>
-                <div class="es-floating-actions">
-                    <button class="es-floating-theme" title="Cycle Theme (Dark / Light / Gold)">🎨</button>
-                    <button class="es-floating-min" title="Minimize / Expand">—</button>
-                    <button class="es-floating-close" title="Close">×</button>
-                </div>
-            </div>
-            <div class="es-floating-content">
-                <div class="es-vars-list"></div>
-                <div class="es-recent-section">
-                    <div class="es-section-title">Recent</div>
-                    <div class="es-recent-list"></div>
-                </div>
-            </div>
-        `;
-        
-        // State will be restored by the SHOW_FLOATING_VARS message handler
-        
-        // Make draggable
+
+        const panel = document.createElement('div');
+        panel.className = 'es-floating-window';
+        panel.innerHTML = `
+      <div class="es-floating-header">
+        <h3 class="es-floating-title">Variables</h3>
+        <div class="es-floating-actions">
+          <button class="es-floating-theme" title="Theme">◎</button>
+          <button class="es-floating-min" title="Minimize">–</button>
+          <button class="es-floating-close" title="Close">×</button>
+        </div>
+      </div>
+      <div class="es-floating-content">
+        <div class="es-vars-list"></div>
+        <div class="es-recent-section">
+          <div class="es-section-title">Recently Updated</div>
+          <div class="es-recent-list"></div>
+        </div>
+      </div>
+    `;
+
+        // Drag
         let isDragging = false;
         let dragOffset = { x: 0, y: 0 };
-        
-        const header = window.querySelector('.es-floating-header');
+        const header = panel.querySelector('.es-floating-header');
+
         header.addEventListener('mousedown', (e) => {
             isDragging = true;
-            const rect = window.getBoundingClientRect();
+            const rect = panel.getBoundingClientRect();
             dragOffset.x = e.clientX - rect.left;
             dragOffset.y = e.clientY - rect.top;
             document.addEventListener('mousemove', handleDrag);
             document.addEventListener('mouseup', stopDrag);
         });
-        
+
         function handleDrag(e) {
             if (!isDragging) return;
+            const vw = document.documentElement.clientWidth;
+            const vh = document.documentElement.clientHeight;
             const x = e.clientX - dragOffset.x;
             const y = e.clientY - dragOffset.y;
-            window.style.left = Math.max(0, Math.min(window.innerWidth - window.offsetWidth, x)) + 'px';
-            window.style.top = Math.max(0, Math.min(window.innerHeight - window.offsetHeight, y)) + 'px';
-            window.style.right = 'auto';
-            
-            // Save position while dragging
-            persistFloatingState(window);
+            panel.style.left = Math.max(0, Math.min(vw - panel.offsetWidth, x)) + 'px';
+            panel.style.top = Math.max(0, Math.min(vh - panel.offsetHeight, y)) + 'px';
+            panel.style.right = 'auto';
+            persistFloatingState(panel);
         }
-        
+
         function stopDrag() {
             isDragging = false;
             document.removeEventListener('mousemove', handleDrag);
             document.removeEventListener('mouseup', stopDrag);
             onDragEnd();
         }
-        
-        // Handle resize
-        const resizeObserver = new ResizeObserver(() => {
-            persistFloatingState(window);
-        });
-        resizeObserver.observe(window);
-        
-        // Add theme button functionality
-        const themeBtn = window.querySelector('.es-floating-theme');
-        themeBtn.addEventListener('click', () => {
-            cycleTheme();
-        });
-        
-        // Add minimize functionality
-        const minBtn = window.querySelector('.es-floating-min');
+
+        // Resize → persist
+        const resizeObserver = new ResizeObserver(() => persistFloatingState(panel));
+        resizeObserver.observe(panel);
+
+        // Buttons (no duplicate consts)
+        const themeBtn = panel.querySelector('.es-floating-theme');
+        const minBtn = panel.querySelector('.es-floating-min');
+        const closeBtn = panel.querySelector('.es-floating-close');
+
+        themeBtn.addEventListener('click', cycleTheme);
         minBtn.addEventListener('click', () => {
-            window.classList.toggle('es-minimized');
-            persistFloatingState(window);           // save minimized state
+            panel.classList.toggle('es-minimized');
+            persistFloatingState(panel);
         });
-        
-        // Close button
-        window.querySelector('.es-floating-close').addEventListener('click', () => {
-            chrome.runtime.sendMessage({type:'TOGGLE_FLOATING_VARS'}).catch(()=>{});
+        closeBtn.addEventListener('click', () => {
+            chrome.runtime.sendMessage({ type: 'TOGGLE_FLOATING_VARS' }).catch(() => { });
         });
-        
-        // Add accessibility attributes
-        window.setAttribute('role', 'dialog');
-        window.setAttribute('aria-label', 'Element Snapper Variables Panel');
-        window.setAttribute('tabindex', '0');
-        
-        // Add ARIA labels to buttons
-        const themeBtn = window.querySelector('.es-floating-theme');
-        const minBtn = window.querySelector('.es-floating-min');
-        const closeBtn = window.querySelector('.es-floating-close');
-        themeBtn.classList.add('es-btn');
-        themeBtn.setAttribute('aria-label', 'Cycle theme: dark, light, or gold');
-        minBtn.classList.add('es-btn');
-        minBtn.setAttribute('aria-label', 'Minimize or expand');
-        closeBtn.classList.add('es-btn');
+
+        // A11y
+        panel.setAttribute('role', 'dialog');
+        panel.setAttribute('aria-label', 'Element Snapper Variables Panel');
+        panel.setAttribute('tabindex', '0');
+        themeBtn.setAttribute('aria-label', 'Switch theme');
+        minBtn.setAttribute('aria-label', 'Minimize');
         closeBtn.setAttribute('aria-label', 'Close');
-        
-        document.body.appendChild(window);
-        floatingWindow = window;
-        
-        // Enable keyboard nudging
-        bindNudgeKeys(window);
-        
-        // Save initial state
-        persistFloatingState(window);
-        
-        return window;
+
+        document.body.appendChild(panel);
+        floatingWindow = panel;
+        restoreFloatingState(panel); // if you have this helper
+        return panel;
     }
-    
+
+    async function restoreFloatingState(panel) {
+        try {
+            const state = await new Promise(r => chrome.runtime.sendMessage({ type: 'GET_FLOATING_STATE' }, r));
+            if (!state || !panel) return;
+            if (state.left) { panel.style.left = state.left; panel.style.right = 'auto'; }
+            if (state.top) panel.style.top = state.top;
+            if (state.width) panel.style.width = state.width;
+            if (state.height && state.height !== 'auto') panel.style.height = state.height;
+            panel.classList.toggle('es-minimized', !!state.minimized);
+        } catch (_) { }
+    }
+
+
+
     // Update floating window content
     function updateFloatingWindow() {
         if (!floatingWindow) return;
-        
+
         const varsList = floatingWindow.querySelector('.es-vars-list');
         const recentList = floatingWindow.querySelector('.es-recent-list');
-        
+
         // Update main vars list
         varsList.innerHTML = '';
         const sortedVars = Object.values(currentData.vars).sort((a, b) => a.name.localeCompare(b.name));
-        
+
         sortedVars.forEach(variable => {
             const item = document.createElement('div');
             item.className = 'es-var-item';
@@ -841,7 +840,7 @@
                     Copy
                 </button>
             `;
-            
+
             // Copy button functionality
             item.querySelector('.es-var-copy').addEventListener('click', async () => {
                 try {
@@ -868,10 +867,10 @@
                     });
                 }
             });
-            
+
             varsList.appendChild(item);
         });
-        
+
         // Update recent vars list
         recentList.innerHTML = '';
         recentVars.slice(0, 3).forEach(varData => {
@@ -889,7 +888,7 @@
                     Copy
                 </button>
             `;
-            
+
             // Copy button for recent vars
             item.querySelector('.es-var-copy').addEventListener('click', async () => {
                 try {
@@ -915,22 +914,22 @@
                     });
                 }
             });
-            
+
             recentList.appendChild(item);
         });
-        
+
         if (recentVars.length === 0) {
             recentList.innerHTML = '<div style="font-size: 11px; color: rgba(255,255,255,0.5); font-style: italic;">No recent updates</div>';
         }
     }
-    
+
     // Escape HTML to prevent XSS
     function escapeHtml(text) {
         const div = document.createElement('div');
         div.textContent = text;
         return div.innerHTML;
     }
-    
+
     // Add to recent vars tracking
     function addToRecent(varData) {
         // Remove existing entry for same variable
@@ -944,7 +943,7 @@
         });
         // Keep only last 5
         recentVars = recentVars.slice(0, 5);
-        
+
         updateFloatingWindow();
     }
 
@@ -957,21 +956,21 @@
                 <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
             </svg>
         `;
-        
+
         // Variable name only in tooltip
         indicator.title = variable.name;
-        
+
         // Accessibility attributes
         indicator.setAttribute('aria-label', `Copy ${variable.name}`);
         indicator.setAttribute('tabindex', '0');
-        
+
         const handleCopy = async (e) => {
             e.preventDefault();
             e.stopPropagation();
-            
+
             // Get fresh value from element
             const currentValue = window.__ES_UTILS__?.getElementValue(element) || element.textContent?.trim() || '';
-            
+
             if (currentValue !== variable.value) {
                 // Update variable with new value
                 try {
@@ -997,26 +996,26 @@
                 });
             }
         };
-        
+
         indicator.addEventListener('click', handleCopy);
-        
+
         // Keyboard support
         indicator.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' || e.key === ' ') {
                 handleCopy(e);
             }
         });
-        
+
         return indicator;
     }
-    
+
     // Create paste button for form fields
     function createPasteButton(element, suggestions) {
         if (suggestions.length === 0) return null;
-        
+
         const button = document.createElement('button');
         button.className = 'es-paste-button';
-        
+
         if (suggestions.length === 1) {
             const suggestion = suggestions[0];
             button.innerHTML = `
@@ -1026,11 +1025,11 @@
                 ${suggestion.varName || 'Paste'}
             `;
             button.title = `Paste ${suggestion.varName}: "${suggestion.value}"`;
-            
+
             button.addEventListener('click', async (e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                
+
                 // Set the value
                 if (window.__ES_UTILS__?.setElementValue) {
                     const success = window.__ES_UTILS__.setElementValue(element, suggestion.value);
@@ -1064,11 +1063,11 @@
                 Paste (${suggestions.length})
             `;
             button.title = `${suggestions.length} paste options available`;
-            
+
             button.addEventListener('click', async (e) => {
                 e.preventDefault();
                 e.stopPropagation();
-                
+
                 // Create dropdown menu
                 const dropdown = document.createElement('div');
                 dropdown.style.cssText = `
@@ -1082,7 +1081,7 @@
                     box-shadow: 0 4px 20px rgba(0,0,0,0.3);
                     min-width: 150px;
                 `;
-                
+
                 suggestions.forEach(suggestion => {
                     const item = document.createElement('button');
                     item.style.cssText = `
@@ -1101,15 +1100,15 @@
                         <div style="font-weight: 500;">${suggestion.varName || 'Value'}</div>
                         <div style="color: rgba(255,255,255,0.7); font-size: 10px;">"${suggestion.value.substring(0, 30)}${suggestion.value.length > 30 ? '...' : ''}"</div>
                     `;
-                    
+
                     item.addEventListener('mouseenter', () => {
                         item.style.background = 'rgba(255,255,255,0.1)';
                     });
-                    
+
                     item.addEventListener('mouseleave', () => {
                         item.style.background = 'none';
                     });
-                    
+
                     item.addEventListener('click', () => {
                         if (window.__ES_UTILS__?.setElementValue) {
                             window.__ES_UTILS__.setElementValue(element, suggestion.value);
@@ -1126,17 +1125,17 @@
                         });
                         dropdown.remove();
                     });
-                    
+
                     dropdown.appendChild(item);
                 });
-                
+
                 // Position dropdown
                 const rect = button.getBoundingClientRect();
                 dropdown.style.top = (rect.bottom + 5) + 'px';
                 dropdown.style.left = rect.left + 'px';
-                
+
                 document.body.appendChild(dropdown);
-                
+
                 // Close dropdown when clicking outside
                 setTimeout(() => {
                     const closeDropdown = (e) => {
@@ -1149,21 +1148,21 @@
                 }, 100);
             });
         }
-        
+
         return button;
     }
-    
+
     // ==== Adaptive Copy Icon Placement
     function bestCornerPosition(rect, size = 18, pad = 2) {
         // candidate corners: BR, TR, BL, TL
         const sx = window.scrollX, sy = window.scrollY;
         const cands = [
             { x: rect.right + sx + pad, y: rect.bottom + sy + pad },            // BR
-            { x: rect.right + sx + pad, y: rect.top    + sy - pad - size },     // TR
-            { x: rect.left  + sx - pad - size, y: rect.bottom + sy + pad },     // BL
-            { x: rect.left  + sx - pad - size, y: rect.top    + sy - pad - size } // TL
+            { x: rect.right + sx + pad, y: rect.top + sy - pad - size },     // TR
+            { x: rect.left + sx - pad - size, y: rect.bottom + sy + pad },     // BL
+            { x: rect.left + sx - pad - size, y: rect.top + sy - pad - size } // TL
         ];
-        const vw = document.documentElement.clientWidth  + sx;
+        const vw = document.documentElement.clientWidth + sx;
         const vh = document.documentElement.clientHeight + sy;
 
         function inViewport(p) {
@@ -1189,7 +1188,7 @@
         const size = 18;
         const p = bestCornerPosition(rect, size, 2);
         btn.style.left = `${p.x}px`;
-        btn.style.top  = `${p.y}px`;
+        btn.style.top = `${p.y}px`;
     }
 
     // Position overlay element relative to target
@@ -1197,41 +1196,41 @@
         const rect = target.getBoundingClientRect();
         const sx = window.pageXOffset || document.documentElement.scrollLeft;
         const sy = window.pageYOffset || document.documentElement.scrollTop;
-        
+
         if (type === 'copy') {
             const pad = 2;             // hug the border
             const size = 18;           // icon size
             overlay.style.left = (rect.right + sx + pad) + 'px';
-            overlay.style.top  = (rect.bottom + sy + pad) + 'px';
-            
+            overlay.style.top = (rect.bottom + sy + pad) + 'px';
+
             // Keep fully on-screen
-            const maxLeft = sx + document.documentElement.clientWidth  - size - 2;
-            const maxTop  = sy + document.documentElement.clientHeight - size - 2;
+            const maxLeft = sx + document.documentElement.clientWidth - size - 2;
+            const maxTop = sy + document.documentElement.clientHeight - size - 2;
             overlay.style.left = Math.min(parseFloat(overlay.style.left), maxLeft) + 'px';
-            overlay.style.top  = Math.min(parseFloat(overlay.style.top),  maxTop)  + 'px';
+            overlay.style.top = Math.min(parseFloat(overlay.style.top), maxTop) + 'px';
         } else {
             // Default position for paste buttons (top-right, outside element)
             overlay.style.left = (rect.right + sx + 6) + 'px';
             overlay.style.top = (rect.top + sy - 6) + 'px';
         }
     }
-    
+
     // Update overlays based on current data
     async function updateOverlays() {
         console.log('updateOverlays called, enabled:', isEnabled, 'data:', currentData);
         if (!isEnabled) return;
-        
+
         // Clear existing overlays
         overlayElements.forEach(overlay => overlay.remove());
         overlayElements.clear();
-        
+
         // Remove highlights
         document.querySelectorAll('.es-element-highlight, .es-paste-highlight').forEach(el => {
             el.classList.remove('es-element-highlight', 'es-paste-highlight');
         });
-        
+
         const currentUrl = location.href;
-        
+
         // Add copy indicators for tracked elements
         console.log('Processing variables:', Object.keys(currentData.vars).length);
         Object.values(currentData.vars).forEach(variable => {
@@ -1252,14 +1251,14 @@
                                 console.log('Site pattern match result:', shouldShow);
                             }
                         }
-                        
+
                         if (shouldShow) {
                             element.classList.add('es-element-highlight');
-                            
+
                             const indicator = createCopyIndicator(element, variable);
                             document.body.appendChild(indicator);
                             overlayElements.set(element, indicator);
-                            
+
                             // Position the indicator using adaptive placement
                             positionCopyIndicator(indicator, element);
                             console.log('Added copy indicator for:', variable.name);
@@ -1274,21 +1273,21 @@
                 console.log('Variable has no sourceSelector:', variable.name);
             }
         });
-        
+
         // Only add paste buttons for form fields that have profile mappings
         console.log('Processing profiles for paste buttons...');
-        
+
         // Find matching profiles for current URL
         const matchingProfiles = Object.values(currentData.profiles).filter(profile =>
             profile.sitePattern && matchesPattern(profile.sitePattern, currentUrl)
         );
-        
+
         console.log('Found matching profiles:', matchingProfiles.length);
-        
+
         // Collect all selectors that have profile mappings
         const profiledSelectors = new Set();
         const selectorToMappings = new Map();
-        
+
         matchingProfiles.forEach(profile => {
             (profile.mappings || profile.inputs || []).forEach(mapping => {
                 if (mapping.selector) {
@@ -1300,19 +1299,19 @@
                 }
             });
         });
-        
+
         console.log('Found profiled selectors:', profiledSelectors.size);
-        
+
         // Only process elements that match profiled selectors
         profiledSelectors.forEach(selector => {
             try {
                 const elements = document.querySelectorAll(selector);
                 console.log(`Selector "${selector}" matches ${elements.length} elements`);
-                
+
                 elements.forEach(element => {
                     const mappings = selectorToMappings.get(selector);
                     const suggestions = [];
-                    
+
                     // Build suggestions from profile mappings
                     mappings.forEach(mapping => {
                         if (mapping.varName) {
@@ -1336,16 +1335,16 @@
                             });
                         }
                     });
-                    
+
                     // Only show paste button if we have valid suggestions from profiles
                     if (suggestions.length > 0) {
                         element.classList.add('es-paste-highlight');
-                        
+
                         const button = createPasteButton(element, suggestions);
                         if (button) {
                             document.body.appendChild(button);
                             overlayElements.set(element, button);
-                            
+
                             // Position the button
                             positionOverlay(button, element);
                             console.log(`Added paste button for element matching "${selector}"`);
@@ -1357,22 +1356,22 @@
             }
         });
     }
-    
+
     // Simple pattern matching
     function matchesPattern(pattern, url) {
         try {
             const p = new URL(pattern.replace('/*', '/'));
             const u = new URL(url);
             if (p.origin !== u.origin) return false;
-            
+
             const pPath = pattern.endsWith('/*') ? p.pathname : pattern.replace(p.origin, '');
             const pSegs = pPath.replace(/\/+$/, '').split('/').filter(Boolean);
             const uSegs = u.pathname.replace(/\/+$/, '').split('/').filter(Boolean);
-            
+
             const allowTail = pattern.endsWith('/*');
             if (!allowTail && pSegs.length !== uSegs.length) return false;
             if (allowTail && uSegs.length < pSegs.length) return false;
-            
+
             for (let i = 0; i < pSegs.length; i++) {
                 const ps = pSegs[i], us = uSegs[i];
                 if (ps !== '*' && ps !== us) return false;
@@ -1383,7 +1382,7 @@
             return clean(url).startsWith(clean(pattern.replace(/\/\*$/, '')));
         }
     }
-    
+
     // Reposition overlays on scroll/resize
     function repositionOverlays() {
         overlayElements.forEach((overlay, target) => {
@@ -1399,10 +1398,10 @@
             }
         });
     }
-    
+
     window.addEventListener('scroll', repositionOverlays);
     window.addEventListener('resize', repositionOverlays);
-    
+
     // Listen for data updates
     chrome.runtime.onMessage.addListener(async (msg) => {
         if (msg.type === 'UPDATE_OVERLAY_DATA') {
@@ -1436,8 +1435,8 @@
             if (!floatingWindow) createFloatingWindow();
             const state = msg.payload || (await readFloatingState());
             if (state) {
-                if (state.left)  { floatingWindow.style.left = state.left; floatingWindow.style.right = 'auto'; }
-                if (state.top)   floatingWindow.style.top  = state.top;
+                if (state.left) { floatingWindow.style.left = state.left; floatingWindow.style.right = 'auto'; }
+                if (state.top) floatingWindow.style.top = state.top;
                 if (state.width) floatingWindow.style.width = state.width;
                 if (state.height && state.height !== 'auto') floatingWindow.style.height = state.height;
                 floatingWindow.classList.toggle('es-minimized', !!state.minimized);
@@ -1447,9 +1446,9 @@
             if (floatingWindow) { floatingWindow.remove(); floatingWindow = null; }
         }
     });
-    
+
     // Background service manages cross-tab behavior - no localStorage needed
-    
+
     // Request initial data with retry logic
     function initializeOverlay() {
         chrome.runtime.sendMessage({ type: 'GET_OVERLAY_DATA' }, (response) => {
@@ -1458,17 +1457,17 @@
                 setTimeout(initializeOverlay, 1000);
                 return;
             }
-            
+
             if (response) {
                 currentData = response.data;
                 isEnabled = response.enabled;
-                console.log('Page overlay initialized:', { 
-                    enabled: isEnabled, 
+                console.log('Page overlay initialized:', {
+                    enabled: isEnabled,
                     vars: Object.keys(currentData.vars).length,
                     sites: Object.keys(currentData.sites).length,
                     profiles: Object.keys(currentData.profiles).length
                 });
-                
+
                 if (isEnabled) {
                     updateOverlays();
                     // Floating window state is managed by background service
@@ -1476,14 +1475,14 @@
             }
         });
     }
-    
+
     // Initialize with delay to ensure extension is ready
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', () => setTimeout(initializeOverlay, 100));
     } else {
         setTimeout(initializeOverlay, 100);
     }
-    
+
     // Handle dynamic content changes
     const observer = new MutationObserver((mutations) => {
         let shouldUpdate = false;
@@ -1500,19 +1499,19 @@
                 });
             }
         });
-        
+
         if (shouldUpdate && isEnabled) {
             // Debounce updates
             clearTimeout(window.__esUpdateTimeout);
             window.__esUpdateTimeout = setTimeout(updateOverlays, 500);
         }
     });
-    
+
     observer.observe(document.body, {
         childList: true,
         subtree: true
     });
-    
+
     console.log('Element Snapper page overlay initialized');
     console.log('Initial data:', currentData);
     console.log('Overlay enabled:', isEnabled);
