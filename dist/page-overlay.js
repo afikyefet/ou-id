@@ -3,7 +3,7 @@
     if (window.__ES_PAGE_OVERLAY_ACTIVE__) return;
     window.__ES_PAGE_OVERLAY_ACTIVE__ = true;
 
-    let overlayElements = new Map();
+    let overlayElements = new Map(); // Map<Element, Set<HTMLElement>>
     let currentData = { vars: {}, sites: {}, profiles: {} };
     let isEnabled = false;
     let floatingWindow = null;
@@ -410,6 +410,31 @@
             outline-offset: 2px !important;
             border-radius: 8px !important;
         }
+        
+        .es-paste-chip {
+            position: absolute !important;
+            z-index: 2147483646 !important;
+            pointer-events: auto !important;
+            background: var(--es-accent) !important;
+            color: #fff !important;
+            border: none !important;
+            border-radius: 12px !important;
+            padding: 2px 8px !important;
+            font: 12px/1 system-ui, sans-serif !important;
+            box-shadow: 0 1px 4px rgba(0,0,0,.25) !important;
+            cursor: pointer !important;
+            transition: all 0.2s ease !important;
+        }
+        
+        .es-paste-chip:hover {
+            transform: scale(1.05) !important;
+            box-shadow: 0 2px 8px rgba(0,0,0,.3) !important;
+        }
+        
+        .es-paste-chip:focus-visible {
+            outline: 2px solid #fff !important;
+            outline-offset: 2px !important;
+        }
     `;
 
     // Inject theme and overlay styles
@@ -433,6 +458,35 @@
         document.body.appendChild(esLive);
     }
     function announce(msg) { esLive.textContent = msg; }
+    
+    // Helper for tracking multiple overlays per element
+    function trackOverlay(target, overlayEl) {
+        let set = overlayElements.get(target);
+        if (!set) { 
+            set = new Set(); 
+            overlayElements.set(target, set); 
+        }
+        set.add(overlayEl);
+    }
+    
+    // Shadow DOM-aware selector resolution
+    function resolveSelectorAcrossShadows(css) {
+        try { 
+            const el = document.querySelector(css); 
+            if (el) return el; 
+        } catch {} 
+        
+        const hosts = document.querySelectorAll('*');
+        for (const host of hosts) {
+            if (host.shadowRoot) {
+                try { 
+                    const inside = host.shadowRoot.querySelector(css); 
+                    if (inside) return inside; 
+                } catch {}
+            }
+        }
+        return null;
+    }
 
     // Professional Toast Notification System
     let toastContainer = null;
@@ -930,6 +984,99 @@
         return div.innerHTML;
     }
 
+    // ==== Recent Copy Paste Chip Functionality ====
+
+    function isEditable(el) {
+        if (!el || el.disabled || el.readOnly) return false;
+        const tag = (el.tagName || '').toLowerCase();
+        if (tag === 'textarea') return true;
+        if (tag === 'input') {
+            const t = (el.type || 'text').toLowerCase();
+            return ['text', 'email', 'number', 'search', 'tel', 'url', 'password', 'date', 'datetime-local', 'time'].includes(t);
+        }
+        if (el.isContentEditable) return true;
+        return false;
+    }
+
+    function bestCornerPositionForChip(rect, size = 24, pad = 4) {
+        const sx = window.scrollX, sy = window.scrollY;
+        const cands = [
+            { x: rect.right + sx + pad, y: rect.top + sy - pad - size }, // TR
+            { x: rect.right + sx + pad, y: rect.bottom + sy + pad },        // BR
+            { x: rect.left + sx - pad - size, y: rect.top + sy - pad - size }, // TL
+            { x: rect.left + sx - pad - size, y: rect.bottom + sy + pad }         // BL
+        ];
+        const vw = document.documentElement.clientWidth + sx;
+        const vh = document.documentElement.clientHeight + sy;
+        const inViewport = p => p.x >= sx && p.y >= sy && p.x + size <= vw && p.y + size <= vh;
+        for (const p of cands) if (inViewport(p)) return p;
+        return cands.find(inViewport) || cands[0];
+    }
+
+    function ensurePasteChip() {
+        if (pasteChip) return pasteChip;
+        const btn = document.createElement('button');
+        btn.className = 'es-paste-chip';
+        btn.type = 'button';
+        btn.setAttribute('aria-label', 'Paste recent value');
+
+        btn.addEventListener('click', async (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (!focusedEl || !recentCopy) return;
+            const val = recentCopy.value ?? '';
+            const ok = window.__ES_UTILS__?.setElementValue?.(focusedEl, val);
+            if (ok !== false) {
+                focusedEl.dispatchEvent(new Event('input', { bubbles: true, composed: true }));
+                focusedEl.dispatchEvent(new Event('change', { bubbles: true, composed: true }));
+                showToast({
+                    title: 'Pasted ✓',
+                    message: `${recentCopy.varName || 'Value'} pasted successfully`,
+                    type: 'success',
+                    duration: 2000
+                });
+            } else {
+                showToast({
+                    title: 'Paste failed',
+                    message: 'Could not paste value',
+                    type: 'error',
+                    duration: 2000
+                });
+            }
+            hidePasteChip();
+        });
+
+        pasteChip = btn;
+        document.body.appendChild(btn);
+        return btn;
+    }
+
+    function showPasteChipFor(el) {
+        const now = Date.now();
+        if (!recentCopy || (now - (recentCopy.ts || 0) > RECENT_TTL_MS)) return hidePasteChip();
+        const chip = ensurePasteChip();
+        const rect = el.getBoundingClientRect();
+        const p = bestCornerPositionForChip(rect, 24, 4);
+        chip.style.left = `${p.x}px`;
+        chip.style.top = `${p.y}px`;
+        chip.textContent = 'Paste';
+        chip.title = recentCopy.varName ? `Paste ${recentCopy.varName}` : 'Paste';
+        chip.style.display = 'inline-flex';
+    }
+
+    function hidePasteChip() {
+        if (pasteChip) pasteChip.style.display = 'none';
+    }
+
+    function setRecentCopy(data) {
+        recentCopy = { ...(data || {}), ts: Date.now() };
+        if (recentTimer) clearTimeout(recentTimer);
+        recentTimer = setTimeout(() => {
+            recentCopy = null;
+            hidePasteChip();
+        }, RECENT_TTL_MS);
+    }
+
     // Add to recent vars tracking
     function addToRecent(varData) {
         // Remove existing entry for same variable
@@ -995,6 +1142,14 @@
                     duration: 2000
                 });
             }
+
+            // Set recent copy locally for immediate paste offers
+            setRecentCopy({ varId: variable.id, varName: variable.name, value: currentValue });
+            // Also notify background so popup can know about it
+            chrome.runtime?.sendMessage?.({
+                type: 'FF_SET_RECENT_COPY',
+                payload: { varId: variable.id, varName: variable.name, value: currentValue, ts: Date.now() }
+            }).catch?.(() => { });
         };
 
         indicator.addEventListener('click', handleCopy);
@@ -1221,7 +1376,7 @@
         if (!isEnabled) return;
 
         // Clear existing overlays
-        overlayElements.forEach(overlay => overlay.remove());
+        overlayElements.forEach(set => set.forEach(overlay => overlay.remove()));
         overlayElements.clear();
 
         // Remove highlights
@@ -1238,7 +1393,7 @@
             if (variable.sourceSelector) {
                 // Try to find element regardless of site matching for better global functionality
                 try {
-                    const element = document.querySelector(variable.sourceSelector);
+                    const element = resolveSelectorAcrossShadows(variable.sourceSelector);
                     console.log('Found element for selector:', variable.sourceSelector, element);
                     if (element) {
                         // Check if site matching is required
@@ -1257,7 +1412,7 @@
 
                             const indicator = createCopyIndicator(element, variable);
                             document.body.appendChild(indicator);
-                            overlayElements.set(element, indicator);
+                            trackOverlay(element, indicator);
 
                             // Position the indicator using adaptive placement
                             positionCopyIndicator(indicator, element);
@@ -1305,10 +1460,26 @@
         // Only process elements that match profiled selectors
         profiledSelectors.forEach(selector => {
             try {
+                // First try regular document query
                 const elements = document.querySelectorAll(selector);
-                console.log(`Selector "${selector}" matches ${elements.length} elements`);
+                const shadowElements = [];
+                
+                // Also check shadow roots
+                const hosts = document.querySelectorAll('*');
+                for (const host of hosts) {
+                    if (host.shadowRoot) {
+                        try {
+                            const inside = host.shadowRoot.querySelectorAll(selector);
+                            shadowElements.push(...inside);
+                        } catch {}
+                    }
+                }
+                
+                // Combine both results
+                const allElements = [...elements, ...shadowElements];
+                console.log(`Selector "${selector}" matches ${allElements.length} elements (${elements.length} regular + ${shadowElements.length} shadow)`);
 
-                elements.forEach(element => {
+                allElements.forEach(element => {
                     const mappings = selectorToMappings.get(selector);
                     const suggestions = [];
 
@@ -1343,7 +1514,7 @@
                         const button = createPasteButton(element, suggestions);
                         if (button) {
                             document.body.appendChild(button);
-                            overlayElements.set(element, button);
+                            trackOverlay(element, button);
 
                             // Position the button
                             positionOverlay(button, element);
@@ -1383,24 +1554,65 @@
         }
     }
 
-    // Reposition overlays on scroll/resize
+    // RAF-throttled reposition overlays on scroll/resize
+    let rafId = null;
     function repositionOverlays() {
-        overlayElements.forEach((overlay, target) => {
-            if (document.contains(target)) {
-                if (overlay.classList.contains('es-copy-indicator')) {
-                    positionCopyIndicator(overlay, target);
-                } else {
-                    positionOverlay(overlay, target, 'paste');
+        if (rafId) return;
+        rafId = requestAnimationFrame(() => {
+            rafId = null;
+            overlayElements.forEach((set, target) => {
+                if (!document.contains(target)) {
+                    set.forEach(el => el.remove());
+                    overlayElements.delete(target);
+                    return;
                 }
-            } else {
-                overlay.remove();
-                overlayElements.delete(target);
-            }
+                set.forEach(overlay => {
+                    if (overlay.classList.contains('es-copy-indicator')) {
+                        positionCopyIndicator(overlay, target);
+                    } else {
+                        positionOverlay(overlay, target, 'paste');
+                    }
+                });
+            });
         });
     }
 
-    window.addEventListener('scroll', repositionOverlays);
+    window.addEventListener('scroll', repositionOverlays, { passive: true });
     window.addEventListener('resize', repositionOverlays);
+
+    // ==== Recent Copy Paste Chip Event Listeners ====
+
+    // When an editable gets focus, show the chip if we have a fresh copy
+    document.addEventListener('focusin', (e) => {
+        if (!isEditable(e.target)) return;
+        focusedEl = e.target;
+        showPasteChipFor(focusedEl);
+    });
+
+    // Hide on blur or typing (optional)
+    document.addEventListener('focusout', () => {
+        focusedEl = null;
+        hidePasteChip();
+    });
+    document.addEventListener('input', (e) => {
+        if (e.target === focusedEl) hidePasteChip();
+    });
+
+    // Keep the chip anchored
+    const repositionChip = (() => {
+        let raf = null;
+        return () => {
+            if (!pasteChip || pasteChip.style.display === 'none') return;
+            if (!focusedEl) return;
+            if (raf) return;
+            raf = requestAnimationFrame(() => {
+                raf = null;
+                showPasteChipFor(focusedEl);
+            });
+        };
+    })();
+    window.addEventListener('scroll', repositionChip, { passive: true });
+    window.addEventListener('resize', repositionChip);
 
     // Listen for data updates
     chrome.runtime.onMessage.addListener(async (msg) => {
@@ -1444,6 +1656,12 @@
             updateFloatingWindow();
         } else if (msg.type === 'HIDE_FLOATING_VARS') {
             if (floatingWindow) { floatingWindow.remove(); floatingWindow = null; }
+        } else if (msg.type === 'FF_SET_RECENT_COPY') {
+            setRecentCopy(msg.payload || {});
+            // If the user is already focused in an input, refresh the offer
+            if (focusedEl) showPasteChipFor(focusedEl);
+            sendResponse?.({ ok: true });
+            return true;
         }
     });
 

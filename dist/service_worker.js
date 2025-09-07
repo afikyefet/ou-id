@@ -40,45 +40,60 @@ async function hideFloatingOn(tabId) {
     } catch (_) { }
 }
 
-// Check if content script is ready and inject if needed
-// Check if content script is ready and inject if needed
+// Robust content script injection with proper error handling
 async function ensureContentScript(tabId) {
+    // First, try to ping existing scripts
+    const ping = () => new Promise((res, rej) => {
+        const t = setTimeout(() => rej(new Error('PING timeout')), 2000);
+        chrome.tabs.sendMessage(tabId, { type: 'PING' }, (r) => {
+            clearTimeout(t);
+            if (chrome.runtime.lastError) return rej(new Error(chrome.runtime.lastError.message));
+            res(r && r.pong === true);
+        });
+    });
+    
     try {
-        const response = await Promise.race([
-            chrome.tabs.sendMessage(tabId, { type: 'PING' }),
-            new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 2000))
-        ]);
-        if (response?.pong) return true;
-    } catch (_) { }
+        if (await ping()) return true;
+    } catch (_) {
+        // Scripts not ready, need to inject
+    }
 
     try {
+        // Check if page allows script injection (restricted pages)
         await chrome.scripting.executeScript({
             target: { tabId },
-            files: ['content.js']
+            files: ['content.js', 'page-overlay.js']
         });
-        await new Promise(r => setTimeout(r, 500));
-        const response = await chrome.tabs.sendMessage(tabId, { type: 'PING' });
-        return response?.pong === true;
+        
+        // Wait for scripts to initialize
+        await new Promise(r => setTimeout(r, 200));
+        
+        // Verify injection succeeded
+        return await ping().catch(() => false);
     } catch (e) {
         console.error('Failed to inject content script:', e);
         return false;
     }
 }
 
-// Robust message sending with retries
+// Robust message sending with proper timeout handling
 async function sendToContent(tabId, message, retries = 2) {
+    const send = () => new Promise((res, rej) => {
+        const t = setTimeout(() => rej(new Error('Message timeout')), 5000);
+        chrome.tabs.sendMessage(tabId, message, (r) => {
+            clearTimeout(t);
+            if (chrome.runtime.lastError) return rej(new Error(chrome.runtime.lastError.message));
+            res(r);
+        });
+    });
+    
     for (let i = 0; i <= retries; i++) {
         try {
-            const ready = await ensureContentScript(tabId);
-            if (!ready) throw new Error('Content script not ready');
-            const response = await Promise.race([
-                chrome.tabs.sendMessage(tabId, message),
-                new Promise((_, reject) => setTimeout(() => reject(new Error('Message timeout')), 5000))
-            ]);
-            return response;
+            await ensureContentScript(tabId);
+            return await send();
         } catch (e) {
             if (i === retries) throw e;
-            await new Promise(r => setTimeout(r, 1000));
+            await new Promise(r => setTimeout(r, 300));
         }
     }
 }
@@ -152,7 +167,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                 try {
                     await chrome.scripting.executeScript({
                         target: { tabId },
-                        files: ['content.js']
+                        files: ['content.js', 'page-overlay.js']
                     });
                     sendResponse({ ok: true });
                 } catch (e) {
@@ -242,7 +257,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                                 type: 'FF_SET_RECENT_COPY',
                                 payload: recentCopy
                             });
-                        } catch (_) {}
+                        } catch (_) { }
                     };
                     sendTo();
 

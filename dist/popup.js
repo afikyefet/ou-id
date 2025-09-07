@@ -1,10 +1,20 @@
-const KEYS = { VARS: 'vars', SITES: 'sites', PROFILES: 'profiles' };
+// Standardized storage keys matching service worker
+const STORAGE_KEYS = {
+    VARS: 'vars',            // { [varId]: { id, name, value, autoCopyUntil?: number, sourceSelector?: string, sourceSiteId?: string, lastUpdated?: number } }
+    SITES: 'sites',          // { [siteId]: { id, title, urlPattern, elements: ElementRef[] } }
+    PROFILES: 'profiles',    // { [profileId]: { id, name, sitePattern, inputs: Mapping[] } }
+    OVERLAY_ENABLED: 'overlayEnabled'  // boolean
+};
+const KEYS = STORAGE_KEYS; // Backward compatibility
 const byId = (id) => document.getElementById(id);
 const $vars = byId('vars-list');
 const $sites = byId('sites-list');
 const $profiles = byId('profiles-list');
 // When picking a selector for a specific mapping, we store the target here:
 window.__ES_EXPECT_SELECTOR__ = null;
+
+// Overlay toggle state
+let overlayEnabled = true;
 
 // Initialize the overlay toggle state on popup open
 (async function initOverlayToggle() {
@@ -767,7 +777,6 @@ byId('btn-refresh-content').onclick = async () => {
 };
 
 // Toggle page overlay controls
-let overlayEnabled = true;
 byId('btn-toggle-overlay').onclick = async () => {
     overlayEnabled = !overlayEnabled;
 
@@ -857,6 +866,15 @@ if (!window.__ES_POPUP_BOUND__) {
         };
         await set({ [KEYS.VARS]: all[KEYS.VARS] });
 
+        // Set recent copy for paste offers
+        chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
+            if (!tab?.id) return;
+            chrome.tabs.sendMessage(tab.id, {
+                type: 'FF_SET_RECENT_COPY',
+                payload: { varId: varId, varName: suggestedName, value: value, ts: Date.now() }
+            }).catch(() => { });
+        });
+
         await renderSites();
         await renderVars();
         document.querySelector('.tabs button.active')?.classList.remove('active');
@@ -906,6 +924,15 @@ byId('btn-copy-active').onclick = async () => {
         await set({ [KEYS.VARS]: varsObj });
         renderVars();
         alert(`Successfully copied value: "${res.value}"`);
+
+        // Set recent copy for paste offers
+        chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
+            if (!tab?.id) return;
+            chrome.tabs.sendMessage(tab.id, {
+                type: 'FF_SET_RECENT_COPY',
+                payload: { varId: choice.id, varName: choice.name, value: res.value, ts: Date.now() }
+            }).catch(() => { });
+        });
     } catch (error) {
         alert(`Error copying from page: ${error.message}\n\nTry refreshing the page and trying again.`);
     }
