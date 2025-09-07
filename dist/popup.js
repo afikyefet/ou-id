@@ -41,9 +41,45 @@ for (const btn of document.querySelectorAll('.tabs button')) {
     });
 }
 
-// Basic storage helpers
-async function getAll() { return new Promise(r => chrome.storage.local.get([KEYS.VARS, KEYS.SITES, KEYS.PROFILES], r)); }
-async function set(partial) { return new Promise(r => chrome.storage.local.set(partial, r)); }
+// Atomic storage operations to prevent race conditions
+async function getAll() {
+    return new Promise(r => chrome.storage.local.get(Object.values(STORAGE_KEYS), r));
+}
+async function set(partial) {
+    return new Promise(r => chrome.storage.local.set(partial, r));
+}
+
+// Atomic variable creation
+async function createVariable(name, value, sourceSelector = null, sourceSiteId = null) {
+    const id = crypto.randomUUID();
+    const all = await getAll();
+    const newVar = {
+        id,
+        name,
+        value,
+        lastUpdated: Date.now(),
+        ...(sourceSelector && { sourceSelector }),
+        ...(sourceSiteId && { sourceSiteId })
+    };
+    all[STORAGE_KEYS.VARS][id] = newVar;
+    await set({ [STORAGE_KEYS.VARS]: all[STORAGE_KEYS.VARS] });
+    return newVar;
+}
+
+// Atomic profile creation
+async function createProfile(name, sitePattern) {
+    const id = crypto.randomUUID();
+    const all = await getAll();
+    const newProfile = {
+        id,
+        name,
+        sitePattern,
+        inputs: []
+    };
+    all[STORAGE_KEYS.PROFILES][id] = newProfile;
+    await set({ [STORAGE_KEYS.PROFILES]: all[STORAGE_KEYS.PROFILES] });
+    return newProfile;
+}
 
 // Notification system
 function showNotification(message, type = 'info', duration = 3000) {
@@ -183,26 +219,43 @@ function renderTimerStatus(variable) {
     return status;
 }
 
-// --- URL helpers (patternizing + matching) ---
+// --- URL helpers (patternizing + matching) using shared utilities ---
 function normalizeUrlBasic(url) {
-    const u = new URL(url);
-    // ignore search/hash when matching
-    return { origin: u.origin, path: u.pathname.replace(/\/+/g, '/') };
+    if (window.__ES_URL_UTILS__) {
+        return window.__ES_URL_UTILS__.normalizeUrlBasic(url);
+    }
+    // Fallback implementation
+    try {
+        const u = new URL(url);
+        return { origin: u.origin, path: u.pathname.replace(/\/+/g, '/') };
+    } catch (e) {
+        return { origin: '', path: '' };
+    }
 }
 
-// Replace ID-like segments (pure numbers or long hex/uuid-ish) with '*'
 function toPatternFromUrl(url) {
-    const { origin, path } = normalizeUrlBasic(url);
-    const segs = path.split('/').filter(Boolean).map(seg => {
-        if (/^\d+$/.test(seg)) return '*';                    // 12345
-        if (/^[0-9a-f-]{8,}$/i.test(seg)) return '*';         // 3f2a1b..., UUID-ish
-        return seg;
-    });
-    return origin + '/' + segs.join('/') + '/*';
+    if (window.__ES_URL_UTILS__) {
+        return window.__ES_URL_UTILS__.toPatternFromUrl(url);
+    }
+    // Fallback implementation
+    try {
+        const { origin, path } = normalizeUrlBasic(url);
+        const segs = path.split('/').filter(Boolean).map(seg => {
+            if (/^\d+$/.test(seg)) return '*';                    // 12345
+            if (/^[0-9a-f-]{8,}$/i.test(seg)) return '*';         // 3f2a1b..., UUID-ish
+            return seg;
+        });
+        return origin + '/' + segs.join('/') + '/*';
+    } catch (e) {
+        return url + '/*';
+    }
 }
 
-// Segment-aware match: '*' matches one segment, trailing '/*' matches any suffix
 function matchesPattern(pattern, url) {
+    if (window.__ES_URL_UTILS__) {
+        return window.__ES_URL_UTILS__.matchesPattern(pattern, url);
+    }
+    // Fallback implementation
     try {
         const p = new URL(pattern.replace('/*', '/')); // temp URL parse
         const u = new URL(url);
@@ -682,41 +735,42 @@ byId('add-var').onclick = async () => {
     const name = byId('new-var-name').value.trim();
     const value = byId('new-var-value').value;
     if (!name) return;
-    const id = crypto.randomUUID();
-    const all = await getAll();
-    all[KEYS.VARS][id] = { id, name, value };
-    await set({ [KEYS.VARS]: all[KEYS.VARS] });
-    byId('new-var-name').value = '';
-    byId('new-var-value').value = '';
-    renderVars();
+
+    try {
+        await createVariable(name, value);
+        byId('new-var-name').value = '';
+        byId('new-var-value').value = '';
+        renderVars();
+        showNotification(`Variable "${name}" created successfully`, 'success');
+    } catch (error) {
+        showNotification(`Failed to create variable: ${error.message}`, 'error');
+    }
 };
 
 // New profile for current page
 byId('btn-new-profile-here').onclick = async () => {
     const { url } = await new Promise(r => chrome.runtime.sendMessage({ type: 'GET_ACTIVE_TAB_URL' }, r));
-    if (!url) return alert('Cannot detect current page URL');
+    if (!url) {
+        showNotification('Cannot detect current page URL', 'error');
+        return;
+    }
 
     const domain = new URL(url).hostname;
     const suggestedName = generateSmartProfileName(url);
     const name = prompt(`Profile name for ${domain}:`, suggestedName);
     if (!name) return;
 
-    const pattern = toPatternFromUrl(url);
-    const id = crypto.randomUUID();
-    const all = await getAll();
+    try {
+        const pattern = toPatternFromUrl(url);
+        const profile = await createProfile(name, pattern);
+        renderProfiles();
+        showNotification(`Profile "${name}" created successfully`, 'success');
 
-    all[KEYS.PROFILES][id] = {
-        id,
-        name,
-        sitePattern: pattern,
-        inputs: []
-    };
-
-    await set({ [KEYS.PROFILES]: all[KEYS.PROFILES] });
-    renderProfiles();
-
-    // Immediately open for editing
-    editProfile(id);
+        // Immediately open for editing
+        editProfile(profile.id);
+    } catch (error) {
+        showNotification(`Failed to create profile: ${error.message}`, 'error');
+    }
 };
 
 // Smart profile name generation
@@ -842,36 +896,27 @@ if (!window.__ES_POPUP_BOUND__) {
         const pattern = toPatternFromUrl(url);
         const title = new URL(url).hostname;
         const all = await getAll();
-        const sites = all[KEYS.SITES];
+        const sites = all[STORAGE_KEYS.SITES];
         let site = Object.values(sites).find(s => s.urlPattern === pattern);
         if (!site) {
             site = { id: crypto.randomUUID(), title, urlPattern: pattern, elements: [] };
             sites[site.id] = site;
         }
         site.elements.push({ selector, note: '', createdAt: Date.now() });
-        await set({ [KEYS.SITES]: sites });
+        await set({ [STORAGE_KEYS.SITES]: sites });
 
         // Smart variable name suggestion
         const suggestedName = generateSmartVariableName(selector, value, title);
 
-        const varId = crypto.randomUUID();
-        // Link variable to its source selector and site for auto-updating
-        all[KEYS.VARS][varId] = {
-            id: varId,
-            name: suggestedName,
-            value,
-            sourceSelector: selector,
-            sourceSiteId: site.id,
-            lastUpdated: Date.now()
-        };
-        await set({ [KEYS.VARS]: all[KEYS.VARS] });
+        // Create variable atomically with source information
+        const variable = await createVariable(suggestedName, value, selector, site.id);
 
         // Set recent copy for paste offers
         chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
             if (!tab?.id) return;
             chrome.tabs.sendMessage(tab.id, {
                 type: 'FF_SET_RECENT_COPY',
-                payload: { varId: varId, varName: suggestedName, value: value, ts: Date.now() }
+                payload: { varId: variable.id, varName: variable.name, value: value, ts: Date.now() }
             }).catch(() => { });
         });
 

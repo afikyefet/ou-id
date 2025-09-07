@@ -93,6 +93,12 @@ function setElementValue(el, val) {
 
 // Resolve selector in document, then shallow shadow roots in this frame
 function resolveSelector(css) {
+  // Use shared resolver if available, otherwise fallback to local implementation
+  if (window.__ES_SELECTOR_UTILS__) {
+    return window.__ES_SELECTOR_UTILS__.resolveSelectorAcrossShadows(css);
+  }
+
+  // Fallback implementation
   try {
     const el = document.querySelector(css);
     if (el) return el;

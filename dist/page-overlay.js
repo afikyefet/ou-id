@@ -458,31 +458,37 @@
         document.body.appendChild(esLive);
     }
     function announce(msg) { esLive.textContent = msg; }
-    
+
     // Helper for tracking multiple overlays per element
     function trackOverlay(target, overlayEl) {
         let set = overlayElements.get(target);
-        if (!set) { 
-            set = new Set(); 
-            overlayElements.set(target, set); 
+        if (!set) {
+            set = new Set();
+            overlayElements.set(target, set);
         }
         set.add(overlayEl);
     }
-    
-    // Shadow DOM-aware selector resolution
+
+    // Shadow DOM-aware selector resolution using shared utilities
     function resolveSelectorAcrossShadows(css) {
-        try { 
-            const el = document.querySelector(css); 
-            if (el) return el; 
-        } catch {} 
-        
+        // Use shared resolver if available, otherwise fallback to local implementation
+        if (window.__ES_SELECTOR_UTILS__) {
+            return window.__ES_SELECTOR_UTILS__.resolveSelectorAcrossShadows(css);
+        }
+
+        // Fallback implementation
+        try {
+            const el = document.querySelector(css);
+            if (el) return el;
+        } catch { }
+
         const hosts = document.querySelectorAll('*');
         for (const host of hosts) {
             if (host.shadowRoot) {
-                try { 
-                    const inside = host.shadowRoot.querySelector(css); 
-                    if (inside) return inside; 
-                } catch {}
+                try {
+                    const inside = host.shadowRoot.querySelector(css);
+                    if (inside) return inside;
+                } catch { }
             }
         }
         return null;
@@ -1463,7 +1469,7 @@
                 // First try regular document query
                 const elements = document.querySelectorAll(selector);
                 const shadowElements = [];
-                
+
                 // Also check shadow roots
                 const hosts = document.querySelectorAll('*');
                 for (const host of hosts) {
@@ -1471,10 +1477,10 @@
                         try {
                             const inside = host.shadowRoot.querySelectorAll(selector);
                             shadowElements.push(...inside);
-                        } catch {}
+                        } catch { }
                     }
                 }
-                
+
                 // Combine both results
                 const allElements = [...elements, ...shadowElements];
                 console.log(`Selector "${selector}" matches ${allElements.length} elements (${elements.length} regular + ${shadowElements.length} shadow)`);

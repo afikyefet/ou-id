@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Complex Forms Test Page</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .form-section {
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .form-section h3 {
+            margin-top: 0;
+            color: #333;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+
+        input,
+        textarea,
+        select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+
+        .form-row {
+            display: flex;
+            gap: 15px;
+        }
+
+        .form-row .form-group {
+            flex: 1;
+        }
+
+        button {
+            background-color: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        .checkbox-group,
+        .radio-group {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+
+        .checkbox-group input,
+        .radio-group input {
+            width: auto;
+        }
+
+        .error {
+            color: #dc3545;
+            font-size: 12px;
+            margin-top: 5px;
+        }
+
+        .success {
+            color: #28a745;
+            font-size: 12px;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Complex Forms Test Page</h1>
+    <p>This page contains complex form scenarios for testing the FluxFill extension.</p>
+
+    <!-- Login Form -->
+    <div class="form-section">
+        <h3>Login Form</h3>
+        <form id="login-form">
+            <div class="form-group">
+                <label for="login-email">Email Address:</label>
+                <input type="email" id="login-email" name="loginEmail" placeholder="Enter your email" required>
+            </div>
+            <div class="form-group">
+                <label for="login-password">Password:</label>
+                <input type="password" id="login-password" name="loginPassword" placeholder="Enter your password"
+                    required>
+            </div>
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" name="rememberMe" value="yes">
+                    Remember me
+                </label>
+            </div>
+            <button type="submit">Login</button>
+        </form>
+    </div>
+
+    <!-- Registration Form -->
+    <div class="form-section">
+        <h3>Registration Form</h3>
+        <form id="registration-form">
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="reg-firstname">First Name:</label>
+                    <input type="text" id="reg-firstname" name="regFirstname" required>
+                </div>
+                <div class="form-group">
+                    <label for="reg-lastname">Last Name:</label>
+                    <input type="text" id="reg-lastname" name="regLastname" required>
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="reg-email">Email Address:</label>
+                <input type="email" id="reg-email" name="regEmail" required>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="reg-password">Password:</label>
+                    <input type="password" id="reg-password" name="regPassword" required minlength="8">
+                </div>
+                <div class="form-group">
+                    <label for="reg-confirm-password">Confirm Password:</label>
+                    <input type="password" id="reg-confirm-password" name="regConfirmPassword" required>
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="reg-phone">Phone Number:</label>
+                <input type="tel" id="reg-phone" name="regPhone" placeholder="+1 (555) 123-4567">
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="reg-country">Country:</label>
+                    <select id="reg-country" name="regCountry" required>
+                        <option value="">Select Country</option>
+                        <option value="us">United States</option>
+                        <option value="ca">Canada</option>
+                        <option value="uk">United Kingdom</option>
+                        <option value="de">Germany</option>
+                        <option value="fr">France</option>
+                        <option value="jp">Japan</option>
+                        <option value="au">Australia</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="reg-birthdate">Birth Date:</label>
+                    <input type="date" id="reg-birthdate" name="regBirthdate" required>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Gender:</label>
+                <div class="radio-group">
+                    <label><input type="radio" name="regGender" value="male"> Male</label>
+                    <label><input type="radio" name="regGender" value="female"> Female</label>
+                    <label><input type="radio" name="regGender" value="other"> Other</label>
+                    <label><input type="radio" name="regGender" value="prefer-not-to-say"> Prefer not to say</label>
+                </div>
+            </div>
+            <div class="form-group">
+                <label>Interests:</label>
+                <div class="checkbox-group">
+                    <label><input type="checkbox" name="regInterests" value="technology"> Technology</label>
+                    <label><input type="checkbox" name="regInterests" value="sports"> Sports</label>
+                    <label><input type="checkbox" name="regInterests" value="music"> Music</label>
+                    <label><input type="checkbox" name="regInterests" value="travel"> Travel</label>
+                    <label><input type="checkbox" name="regInterests" value="cooking"> Cooking</label>
+                    <label><input type="checkbox" name="regInterests" value="reading"> Reading</label>
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="reg-bio">Bio:</label>
+                <textarea id="reg-bio" name="regBio" rows="4" placeholder="Tell us about yourself"></textarea>
+            </div>
+            <div class="form-group">
+                <label>
+                    <input type="checkbox" name="regTerms" value="yes" required>
+                    I agree to the <a href="#" onclick="alert('Terms of Service')">Terms of Service</a> and <a href="#"
+                        onclick="alert('Privacy Policy')">Privacy Policy</a>
+                </label>
+            </div>
+            <button type="submit">Register</button>
+            <button type="reset">Reset Form</button>
+        </form>
+    </div>
+
+    <!-- Contact Form -->
+    <div class="form-section">
+        <h3>Contact Form</h3>
+        <form id="contact-form">
+            <div class="form-group">
+                <label for="contact-subject">Subject:</label>
+                <select id="contact-subject" name="contactSubject" required>
+                    <option value="">Select a subject</option>
+                    <option value="general">General Inquiry</option>
+                    <option value="support">Technical Support</option>
+                    <option value="billing">Billing Question</option>
+                    <option value="feedback">Feedback</option>
+                    <option value="bug-report">Bug Report</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="contact-name">Your Name:</label>
+                <input type="text" id="contact-name" name="contactName" required>
+            </div>
+            <div class="form-group">
+                <label for="contact-email">Your Email:</label>
+                <input type="email" id="contact-email" name="contactEmail" required>
+            </div>
+            <div class="form-group">
+                <label for="contact-message">Message:</label>
+                <textarea id="contact-message" name="contactMessage" rows="6" required
+                    placeholder="Please describe your inquiry in detail"></textarea>
+            </div>
+            <div class="form-group">
+                <label for="contact-priority">Priority:</label>
+                <select id="contact-priority" name="contactPriority">
+                    <option value="low">Low</option>
+                    <option value="medium" selected>Medium</option>
+                    <option value="high">High</option>
+                    <option value="urgent">Urgent</option>
+                </select>
+            </div>
+            <button type="submit">Send Message</button>
+        </form>
+    </div>
+
+    <!-- Dynamic Form -->
+    <div class="form-section">
+        <h3>Dynamic Form</h3>
+        <form id="dynamic-form">
+            <div class="form-group">
+                <label for="dynamic-count">Number of Fields:</label>
+                <input type="number" id="dynamic-count" name="dynamicCount" min="1" max="10" value="3">
+                <button type="button" onclick="addDynamicFields()">Add Fields</button>
+            </div>
+            <div id="dynamic-fields"></div>
+        </form>
+    </div>
+
+    <script>
+        // Form validation and interaction
+        document.getElementById('login-form').addEventListener('submit', function (e) {
+            e.preventDefault();
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+
+            if (email && password) {
+                showMessage('Login successful!', 'success');
+            } else {
+                showMessage('Please fill in all required fields.', 'error');
+            }
+        });
+
+        document.getElementById('registration-form').addEventListener('submit', function (e) {
+            e.preventDefault();
+            const password = document.getElementById('reg-password').value;
+            const confirmPassword = document.getElementById('reg-confirm-password').value;
+
+            if (password !== confirmPassword) {
+                showMessage('Passwords do not match.', 'error');
+                return;
+            }
+
+            showMessage('Registration successful!', 'success');
+        });
+
+        document.getElementById('contact-form').addEventListener('submit', function (e) {
+            e.preventDefault();
+            showMessage('Message sent successfully!', 'success');
+        });
+
+        function showMessage(text, type) {
+            const message = document.createElement('div');
+            message.className = type;
+            message.textContent = text;
+            message.style.marginTop = '10px';
+
+            const form = event.target;
+            form.appendChild(message);
+
+            setTimeout(() => {
+                message.remove();
+            }, 3000);
+        }
+
+        // Dynamic field functionality
+        function addDynamicFields() {
+            const count = parseInt(document.getElementById('dynamic-count').value);
+            const container = document.getElementById('dynamic-fields');
+            container.innerHTML = '';
+
+            for (let i = 1; i <= count; i++) {
+                const fieldGroup = document.createElement('div');
+                fieldGroup.className = 'form-group';
+                fieldGroup.innerHTML = `
+                    <label for="dynamic-field-${i}">Dynamic Field ${i}:</label>
+                    <input type="text" id="dynamic-field-${i}" name="dynamicField${i}" placeholder="Enter value for field ${i}">
+                `;
+                container.appendChild(fieldGroup);
+            }
+        }
+
+        // Initialize dynamic fields
+        addDynamicFields();
+
+        // Add some dynamic content after page load
+        setTimeout(() => {
+            const dynamicSection = document.createElement('div');
+            dynamicSection.className = 'form-section';
+            dynamicSection.innerHTML = `
+                <h3>Late-loaded Form</h3>
+                <form id="late-form">
+                    <div class="form-group">
+                        <label for="late-email">Email:</label>
+                        <input type="email" id="late-email" name="lateEmail" placeholder="Late-loaded email field">
+                    </div>
+                    <div class="form-group">
+                        <label for="late-message">Message:</label>
+                        <textarea id="late-message" name="lateMessage" rows="3" placeholder="Late-loaded message field"></textarea>
+                    </div>
+                    <button type="submit">Submit Late Form</button>
+                </form>
+            `;
+            document.body.appendChild(dynamicSection);
+
+            // Add event listener to late form
+            document.getElementById('late-form').addEventListener('submit', function (e) {
+                e.preventDefault();
+                showMessage('Late form submitted!', 'success');
+            });
+        }, 2000);
+
+        console.log('Complex forms test page loaded');
+    </script>
+</body>
+
+</html>

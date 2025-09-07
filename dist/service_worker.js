@@ -51,7 +51,7 @@ async function ensureContentScript(tabId) {
             res(r && r.pong === true);
         });
     });
-    
+
     try {
         if (await ping()) return true;
     } catch (_) {
@@ -62,12 +62,12 @@ async function ensureContentScript(tabId) {
         // Check if page allows script injection (restricted pages)
         await chrome.scripting.executeScript({
             target: { tabId },
-            files: ['content.js', 'page-overlay.js']
+            files: ['selector-utils.js', 'content.js', 'page-overlay.js']
         });
-        
+
         // Wait for scripts to initialize
         await new Promise(r => setTimeout(r, 200));
-        
+
         // Verify injection succeeded
         return await ping().catch(() => false);
     } catch (e) {
@@ -86,7 +86,7 @@ async function sendToContent(tabId, message, retries = 2) {
             res(r);
         });
     });
-    
+
     for (let i = 0; i <= retries; i++) {
         try {
             await ensureContentScript(tabId);
@@ -167,7 +167,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                 try {
                     await chrome.scripting.executeScript({
                         target: { tabId },
-                        files: ['content.js', 'page-overlay.js']
+                        files: ['selector-utils.js', 'content.js', 'page-overlay.js']
                     });
                     sendResponse({ ok: true });
                 } catch (e) {
@@ -284,6 +284,25 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
                 }
                 sendResponse({ ok: true });
             }
+            else if (msg.type === 'SET_RECENT_COPY') {
+                // Handle direct recent copy setting (from popup or other sources)
+                const { varId, varName, value, ts } = msg.payload || {};
+                recentCopy = { varId, varName, value, ts: ts || Date.now() };
+
+                const sendTo = async () => {
+                    const targetTabId = sender?.tab?.id ?? (await getActiveTabId?.());
+                    if (!targetTabId) return;
+                    try {
+                        await chrome.tabs.sendMessage(targetTabId, {
+                            type: 'FF_SET_RECENT_COPY',
+                            payload: recentCopy
+                        });
+                    } catch (_) { }
+                };
+                sendTo();
+
+                sendResponse({ ok: true });
+            }
         } catch (e) {
             console.error(e);
             sendResponse({ ok: false, error: String(e) });
@@ -387,8 +406,14 @@ async function handlePageChanged(tabId, payload) {
     }
 }
 
-// Background pattern matching
+// Background pattern matching using shared utilities
 function matchesPatternInBackground(pattern, url) {
+    // Use shared URL utilities if available, otherwise fallback to local implementation
+    if (typeof window !== 'undefined' && window.__ES_URL_UTILS__) {
+        return window.__ES_URL_UTILS__.matchesPattern(pattern, url);
+    }
+
+    // Fallback implementation
     try {
         const p = new URL(pattern.replace('/*', '/'));
         const u = new URL(url);

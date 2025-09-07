@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shadow DOM Test Page</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .shadow-host {
+            border: 2px solid #007bff;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+        }
+
+        .shadow-host h3 {
+            margin-top: 0;
+            color: #007bff;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Shadow DOM Test Page</h1>
+    <p>This page contains elements with Shadow DOM for testing the FluxFill extension's shadow DOM support.</p>
+
+    <!-- Regular form elements for comparison -->
+    <h2>Regular Form Elements</h2>
+    <form id="regular-form">
+        <div>
+            <label for="regular-email">Email:</label>
+            <input type="email" id="regular-email" name="regularEmail" placeholder="Regular email input">
+        </div>
+        <div>
+            <label for="regular-password">Password:</label>
+            <input type="password" id="regular-password" name="regularPassword" placeholder="Regular password input">
+        </div>
+    </form>
+
+    <!-- Shadow DOM host elements -->
+    <div id="shadow-host" class="shadow-host">
+        <h3>Shadow DOM Form</h3>
+        <p>This container has a shadow root with form elements inside.</p>
+    </div>
+
+    <div id="shadow-host-2" class="shadow-host">
+        <h3>Another Shadow DOM Form</h3>
+        <p>This container has a different shadow root with more form elements.</p>
+    </div>
+
+    <script>
+        // Create shadow DOM with form elements
+        function createShadowForm(hostId) {
+            const host = document.getElementById(hostId);
+            const shadowRoot = host.attachShadow({ mode: 'open' });
+
+            shadowRoot.innerHTML = `
+                <style>
+                    .shadow-form {
+                        background: #f8f9fa;
+                        padding: 15px;
+                        border-radius: 6px;
+                        margin-top: 10px;
+                    }
+                    .form-group {
+                        margin-bottom: 10px;
+                    }
+                    label {
+                        display: block;
+                        margin-bottom: 5px;
+                        font-weight: bold;
+                        color: #333;
+                    }
+                    input, textarea, select {
+                        width: 100%;
+                        padding: 6px;
+                        border: 1px solid #ccc;
+                        border-radius: 4px;
+                        box-sizing: border-box;
+                    }
+                    button {
+                        background-color: #28a745;
+                        color: white;
+                        padding: 8px 16px;
+                        border: none;
+                        border-radius: 4px;
+                        cursor: pointer;
+                        margin-right: 10px;
+                    }
+                    button:hover {
+                        background-color: #218838;
+                    }
+                </style>
+                <div class="shadow-form">
+                    <div class="form-group">
+                        <label for="shadow-email">Email Address:</label>
+                        <input type="email" id="shadow-email" name="shadowEmail" placeholder="Shadow DOM email input">
+                    </div>
+                    <div class="form-group">
+                        <label for="shadow-password">Password:</label>
+                        <input type="password" id="shadow-password" name="shadowPassword" placeholder="Shadow DOM password input">
+                    </div>
+                    <div class="form-group">
+                        <label for="shadow-name">Full Name:</label>
+                        <input type="text" id="shadow-name" name="shadowName" placeholder="Shadow DOM name input">
+                    </div>
+                    <div class="form-group">
+                        <label for="shadow-message">Message:</label>
+                        <textarea id="shadow-message" name="shadowMessage" rows="3" placeholder="Shadow DOM message input"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="shadow-country">Country:</label>
+                        <select id="shadow-country" name="shadowCountry">
+                            <option value="">Select country</option>
+                            <option value="us">United States</option>
+                            <option value="ca">Canada</option>
+                            <option value="uk">United Kingdom</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <button type="button" onclick="alert('Shadow form submitted!')">Submit Shadow Form</button>
+                        <button type="button" onclick="this.closest('.shadow-form').querySelectorAll('input, textarea, select').forEach(el => el.value = '')">Clear</button>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Create shadow forms
+        createShadowForm('shadow-host');
+        createShadowForm('shadow-host-2');
+
+        // Add some dynamic shadow DOM content
+        setTimeout(() => {
+            const dynamicHost = document.createElement('div');
+            dynamicHost.id = 'dynamic-shadow-host';
+            dynamicHost.className = 'shadow-host';
+            dynamicHost.innerHTML = '<h3>Dynamic Shadow DOM</h3><p>This shadow DOM was created dynamically.</p>';
+            document.body.appendChild(dynamicHost);
+            createShadowForm('dynamic-shadow-host');
+        }, 1000);
+
+        // Test shadow DOM access
+        console.log('Shadow DOM test page loaded');
+        console.log('Shadow roots:', document.querySelectorAll('*').length, 'elements checked for shadow roots');
+    </script>
+</body>
+
+</html>

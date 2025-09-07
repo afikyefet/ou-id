@@ -26,6 +26,8 @@
                 "<all_urls>"
             ],
             "js": [
+                "url-utils.js",
+                "selector-utils.js",
                 "content.js",
                 "page-overlay.js"
             ],
