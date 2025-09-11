@@ -1,10 +1,10 @@
 {
     "manifest_version": 3,
-    "name": "Element Snapper",
+    "name": "FillFlux",
     "version": "0.1.0",
     "description": "Capture values from page elements and paste variables into forms using profiles.",
     "action": {
-        "default_title": "Element Snapper",
+        "default_title": "FillFlux",
         "default_popup": "popup.html"
     },
     "permissions": [
