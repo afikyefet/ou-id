@@ -20,42 +20,42 @@
     // CSS Custom Properties for theming
     const themeStyles = `
         :root {
-            --es-primary: #6B5BFF;
-            --es-secondary: #FF4D8D;
-            --es-success: #34c759;
-            --es-background: rgba(17,17,17,0.95);
-            --es-surface: rgba(255,255,255,0.15);
-            --es-text: white;
-            --es-text-muted: rgba(255,255,255,0.6);
-            --es-accent: #4f8cff;
-            --es-border: rgba(255,255,255,0.08);
-            --es-shadow: rgba(0,0,0,0.3);
+            --es-primary: #0A84FF; /* iOS primary */
+            --es-secondary: #6B7280; /* subtle secondary */
+            --es-success: #34C759; /* iOS success */
+            --es-background: rgba(255,255,255,0.92);
+            --es-surface: rgba(0,0,0,0.06);
+            --es-text: #111111;
+            --es-text-muted: rgba(60,60,67,0.6);
+            --es-accent: #0A84FF;
+            --es-border: rgba(0,0,0,0.12);
+            --es-shadow: rgba(0,0,0,0.15);
         }
         
         [data-es-theme="light"] {
-            --es-primary: #5E4EF5;
-            --es-secondary: #E73C7E;
-            --es-success: #28A745;
-            --es-background: rgba(255,255,255,0.95);
-            --es-surface: rgba(0,0,0,0.1);
-            --es-text: #1a1a1a;
-            --es-text-muted: rgba(0,0,0,0.6);
+            --es-primary: #0A84FF;
+            --es-secondary: #6B7280;
+            --es-success: #34C759;
+            --es-background: rgba(247,247,249,0.92);
+            --es-surface: rgba(0,0,0,0.06);
+            --es-text: #111111;
+            --es-text-muted: rgba(60,60,67,0.6);
             --es-accent: #007AFF;
-            --es-border: rgba(0,0,0,0.1);
-            --es-shadow: rgba(0,0,0,0.15);
+            --es-border: rgba(0,0,0,0.12);
+            --es-shadow: rgba(0,0,0,0.18);
         }
         
         [data-es-theme="gold"] {
             --es-primary: #FFB800;
-            --es-secondary: #FF6B35;
+            --es-secondary: #6B7280;
             --es-success: #32D74B;
-            --es-background: rgba(25,20,15,0.95);
-            --es-surface: rgba(255,184,0,0.15);
-            --es-text: #F2E5A2;
-            --es-text-muted: rgba(242,229,162,0.7);
+            --es-background: rgba(251,245,230,0.92);
+            --es-surface: rgba(255,184,0,0.18);
+            --es-text: #3a2d16;
+            --es-text-muted: rgba(58,45,22,0.7);
             --es-accent: #FFD60A;
-            --es-border: rgba(255,184,0,0.2);
-            --es-shadow: rgba(0,0,0,0.4);
+            --es-border: rgba(255,184,0,0.28);
+            --es-shadow: rgba(0,0,0,0.25);
         }
     `;
 
@@ -66,8 +66,8 @@
             width: 18px !important;
             height: 18px !important;
             border-radius: 50% !important;
-            background: linear-gradient(135deg, var(--es-primary), var(--es-secondary)) !important;
-            color: var(--es-text) !important;
+            background: var(--es-primary) !important;
+            color: #fff !important;
             border: none !important;
             display: flex !important;
             align-items: center !important;
@@ -76,7 +76,7 @@
             cursor: pointer !important;
             pointer-events: auto !important;
             z-index: 2147483646 !important;
-            box-shadow: 0 1px 4px var(--es-shadow) !important;
+            box-shadow: 0 2px 8px var(--es-shadow) !important;
             transition: all 0.2s ease !important;
         }
         
@@ -87,13 +87,13 @@
         
         .es-paste-button {
             position: absolute !important;
-            background: linear-gradient(135deg, var(--es-success) 0%, var(--es-success) 100%) !important;
-            color: var(--es-text) !important;
+            background: var(--es-success) !important;
+            color: #fff !important;
             border: none !important;
-            border-radius: 12px !important;
+            border-radius: 10px !important;
             padding: 4px 8px !important;
             font-size: 11px !important;
-            font-family: system-ui, sans-serif !important;
+            font-family: -apple-system, system-ui, sans-serif !important;
             font-weight: 500 !important;
             cursor: pointer !important;
             z-index: 2147483646 !important;
@@ -115,24 +115,24 @@
         .es-element-highlight {
             outline: 1px solid var(--es-accent) !important;
             outline-offset: 0px !important;
-            border-radius: 2px !important;
-            background: color-mix(in srgb, var(--es-accent) 2%, transparent) !important;
+            border-radius: 4px !important;
+            background: color-mix(in srgb, var(--es-accent) 4%, transparent) !important;
         }
         
         .es-paste-highlight {
             outline: 1px solid var(--es-success) !important;
             outline-offset: 0px !important;
-            border-radius: 2px !important;
-            background: color-mix(in srgb, var(--es-success) 2%, transparent) !important;
+            border-radius: 4px !important;
+            background: color-mix(in srgb, var(--es-success) 5%, transparent) !important;
         }
         
         .es-toast-container {
             position: fixed !important;
-            top: 16px !important;
-            right: 16px !important;
+            bottom: 16px !important;
+            left: 16px !important;
             z-index: 2147483647 !important;
             display: flex !important;
-            flex-direction: column !important;
+            flex-direction: column-reverse !important;
             gap: 8px !important;
             pointer-events: none !important;
         }
@@ -141,11 +141,11 @@
             background: var(--es-background) !important;
             color: var(--es-text) !important;
             padding: 12px 16px !important;
-            border-radius: 8px !important;
+            border-radius: 10px !important;
             font-size: 13px !important;
-            font-family: system-ui, sans-serif !important;
-            box-shadow: 0 4px 20px var(--es-shadow) !important;
-            backdrop-filter: blur(12px) !important;
+            font-family: -apple-system, system-ui, sans-serif !important;
+            box-shadow: 0 8px 24px var(--es-shadow) !important;
+            backdrop-filter: blur(10px) !important;
             border: 1px solid var(--es-border) !important;
             pointer-events: auto !important;
             display: flex !important;
@@ -153,18 +153,18 @@
             gap: 8px !important;
             min-width: 200px !important;
             max-width: 300px !important;
-            transform: translateX(100%) !important;
+            transform: translateY(100%) !important;
             opacity: 0 !important;
-            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
+            transition: all 0.28s cubic-bezier(0.16, 1, 0.3, 1) !important;
         }
         
         .es-toast.es-toast-show {
-            transform: translateX(0) !important;
+            transform: translateY(0) !important;
             opacity: 1 !important;
         }
         
         .es-toast.es-toast-hide {
-            transform: translateX(100%) !important;
+            transform: translateY(100%) !important;
             opacity: 0 !important;
         }
         
@@ -250,12 +250,12 @@
             width: 240px !important;
             max-height: 350px !important;
             background: var(--es-background) !important;
-            border: 1px solid var(--es-surface) !important;
-            border-radius: 8px !important;
-            box-shadow: 0 6px 24px var(--es-shadow) !important;
-            backdrop-filter: blur(12px) !important;
+            border: 1px solid var(--es-border) !important;
+            border-radius: 12px !important;
+            box-shadow: 0 12px 30px var(--es-shadow) !important;
+            backdrop-filter: blur(14px) !important;
             z-index: 2147483645 !important;
-            font-family: system-ui, sans-serif !important;
+            font-family: -apple-system, system-ui, sans-serif !important;
             color: var(--es-text) !important;
             resize: both !important;
             overflow: hidden !important;
@@ -263,12 +263,12 @@
         
         .es-floating-header {
             padding: 8px 12px !important;
-            border-bottom: 1px solid var(--es-border) !important;
+            border-bottom: 1px solid var(--es-surface) !important;
             display: flex !important;
             align-items: center !important;
             justify-content: space-between !important;
             cursor: move !important;
-            background: color-mix(in srgb, var(--es-accent) 8%, transparent) !important;
+            background: color-mix(in srgb, var(--es-accent) 6%, transparent) !important;
         }
         
         .es-floating-title {
@@ -418,7 +418,7 @@
             background: var(--es-accent) !important;
             color: #fff !important;
             border: none !important;
-            border-radius: 12px !important;
+            border-radius: 10px !important;
             padding: 2px 8px !important;
             font: 12px/1 system-ui, sans-serif !important;
             box-shadow: 0 1px 4px rgba(0,0,0,.25) !important;

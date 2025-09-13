@@ -6,55 +6,60 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Element Snapper</title>
     <link rel="stylesheet" href="popup.css" />
+    <link rel="stylesheet" href="ui-ios.css" />
 </head>
 
 <body>
-    <header>
-        <h1>Element Snapper</h1>
-        <div id="notification-area" style="position: fixed; top: 10px; right: 10px; z-index: 10000;"></div>
-    </header>
+    <div class="ios-shell">
+        <header>
+            <h1>Element Snapper</h1>
+            <div id="notification-area" style="position: fixed; top: 10px; right: 10px; z-index: 10000;"></div>
+        </header>
 
-    <nav class="tabs">
-        <button data-tab="vars" class="active">Variables</button>
-        <button data-tab="sites">Sites</button>
-        <button data-tab="profiles">Profiles</button>
-    </nav>
+        <nav class="tabs segmented">
+            <button data-tab="vars" class="active">Variables</button>
+            <button data-tab="sites">Sites</button>
+            <button data-tab="profiles">Profiles</button>
+        </nav>
 
-    <main>
-        <section id="tab-vars" class="tab active">
-            <div class="toolbar">
-                <button id="btn-pick">Pick Element</button>
-                <button id="btn-copy-active">Copy from Page</button>
-                <button id="btn-refresh-content" class="ghost">Refresh Scripts</button>
-                <button id="btn-toggle-overlay" class="ghost">📍 Page Controls</button>
-                <button id="btn-floating-vars" class="ghost">🪟 Floating Vars</button>
-            </div>
-            <ul id="vars-list" class="list"></ul>
-            <div class="new-row">
-                <input id="new-var-name" placeholder="New variable name" />
-                <input id="new-var-value" placeholder="Value (optional)" />
-                <button id="add-var">Add</button>
-            </div>
-        </section>
+        <main>
+            <section id="tab-vars" class="tab active">
+                <div class="toolbar">
+                    <button id="btn-pick">Pick Element</button>
+                    <button id="btn-copy-active">Copy from Page</button>
+                    <button id="btn-refresh-content" class="ghost">Refresh Scripts</button>
+                    <button id="btn-toggle-overlay" class="ghost">📍 Page Controls</button>
+                    <button id="btn-floating-vars" class="ghost">🪟 Floating Vars</button>
+                </div>
+                <ul id="vars-list" class="list"></ul>
+                <div class="new-row">
+                    <input id="new-var-name" placeholder="New variable name" />
+                    <input id="new-var-value" placeholder="Value (optional)" />
+                    <button id="add-var">Add</button>
+                </div>
+            </section>
 
-        <section id="tab-sites" class="tab">
-            <div class="toolbar">
-                <span id="active-url"></span>
-            </div>
-            <ul id="sites-list" class="list"></ul>
-        </section>
+            <section id="tab-sites" class="tab">
+                <div class="toolbar">
+                    <span id="active-url"></span>
+                </div>
+                <ul id="sites-list" class="list"></ul>
+            </section>
 
-        <section id="tab-profiles" class="tab">
-            <div class="toolbar">
-                <button id="btn-fill-form">Fill Form</button>
-                <button id="btn-new-profile-here">New Profile for This Page</button>
-            </div>
-            <ul id="profiles-list" class="list"></ul>
-            <div id="current-site-info" class="small" style="padding: 8px; background: #0e1628; margin: 8px 0; border-radius: 4px;"></div>
-        </section>
-    </main>
+            <section id="tab-profiles" class="tab">
+                <div class="toolbar">
+                    <button id="btn-fill-form">Fill Form</button>
+                    <button id="btn-new-profile-here">New Profile for This Page</button>
+                </div>
+                <ul id="profiles-list" class="list"></ul>
+                <div id="current-site-info" class="small"
+                    style="padding: 8px; background: #0e1628; margin: 8px 0; border-radius: 4px;"></div>
+            </section>
+        </main>
+    </div>
 
     <script src="popup.js"></script>
+    <script src="ui-bridge.js"></script>
 </body>
 
 </html>
