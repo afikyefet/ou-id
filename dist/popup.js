@@ -821,13 +821,13 @@ async function editProfile(profileId) {
 
     modal.innerHTML = `
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-            <h3 style="margin: 0;">Edit Profile: ${profile.name}</h3>
+            <h3 style="margin: 0;">Edit Profile: ${escapeHTML(profile.name)}</h3>
             <button id="close-edit" style="background: none; border: none; color: var(--muted); font-size: 18px; cursor: pointer;">×</button>
         </div>
         
         <div style="margin-bottom: 16px;">
             <label>Profile Name:</label>
-            <input id="edit-profile-name" value="${profile.name}" style="width: 100%; margin-top: 4px; padding: 6px; background: #0e1628; border: 1px solid #1a2438; color: var(--fg); border-radius: 4px;" />
+            <input id="edit-profile-name" value="${escapeHTML(profile.name)}" style="width: 100%; margin-top: 4px; padding: 6px; background: #0e1628; border: 1px solid #1a2438; color: var(--fg); border-radius: 4px;" />
         </div>
         
         <div style="margin-bottom: 16px;">
