@@ -5,60 +5,129 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>FillFlux</title>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@300" rel="stylesheet">
+    <link rel="stylesheet" href="material-design.css" />
     <link rel="stylesheet" href="popup.css" />
-    <link rel="stylesheet" href="ui-ios.css" />
 </head>
 
 <body>
-    <div class="ios-shell">
-        <header>
-            <h1>FillFlux</h1>
-            <div id="notification-area" role="status" aria-live="polite"
-                style="position: fixed; top: 10px; right: 10px; z-index: 10000;"></div>
-        </header>
+    <div class="compact-container">
+        <!-- Compact Header (24px) -->
+        <div class="compact-header">
+            <button class="icon-btn" id="menu-btn" data-tooltip="Menu">
+                <span class="material-symbols-outlined">menu</span>
+            </button>
+            <span class="app-title">FillFlux</span>
+            <button class="icon-btn" id="settings-btn" data-tooltip="Settings">
+                <span class="material-symbols-outlined">settings</span>
+            </button>
+        </div>
 
-        <nav class="tabs segmented">
-            <button data-tab="vars" class="active">Variables</button>
-            <button data-tab="sites">Sites</button>
-            <button data-tab="profiles">Profiles</button>
-        </nav>
+        <!-- Quick Actions Toolbar (32px) -->
+        <div class="compact-toolbar">
+            <button class="icon-btn" id="btn-pick" data-tooltip="Pick Element">
+                <span class="material-symbols-outlined">colorize</span>
+            </button>
+            <button class="icon-btn" id="btn-copy-active" data-tooltip="Copy from Page">
+                <span class="material-symbols-outlined">content_copy</span>
+            </button>
+            <button class="icon-btn" id="btn-refresh-content" data-tooltip="Refresh Scripts">
+                <span class="material-symbols-outlined">refresh</span>
+            </button>
+            <button class="icon-btn" id="btn-toggle-overlay" data-tooltip="Page Controls">
+                <span class="material-symbols-outlined">tune</span>
+            </button>
+            <button class="icon-btn" id="btn-floating-vars" data-tooltip="Floating Vars">
+                <span class="material-symbols-outlined">open_in_new</span>
+            </button>
+        </div>
 
-        <main>
-            <section id="tab-vars" class="tab active">
-                <div class="toolbar">
-                    <button id="btn-pick">Pick Element</button>
-                    <button id="btn-copy-active">Copy from Page</button>
-                    <button id="btn-refresh-content" class="ghost">Refresh Scripts</button>
-                    <button id="btn-toggle-overlay" class="ghost">📍 Page Controls</button>
-                    <button id="btn-floating-vars" class="ghost">🪟 Floating Vars</button>
-                </div>
-                <ul id="vars-list" class="list"></ul>
-                <div class="new-row">
-                    <input id="new-var-name" placeholder="New variable name" />
-                    <input id="new-var-value" placeholder="Value (optional)" />
-                    <button id="add-var">Add</button>
-                </div>
-            </section>
+        <!-- Status Line (32px) -->
+        <div class="compact-status">
+            <span id="status-text">Active: <span id="active-vars-count">0</span> vars</span>
+            <span id="current-site-name" class="status-indicator"></span>
+        </div>
 
-            <section id="tab-sites" class="tab">
-                <div class="toolbar">
-                    <span id="active-url"></span>
-                </div>
-                <ul id="sites-list" class="list"></ul>
-            </section>
+        <!-- Bottom Actions (32px) -->
+        <div class="compact-actions">
+            <button class="icon-btn" id="add-var" data-tooltip="Add Variable">
+                <span class="material-symbols-outlined">add_circle</span>
+            </button>
+            <button class="icon-btn" id="btn-fill-form" data-tooltip="Fill Form">
+                <span class="material-symbols-outlined">play_arrow</span>
+            </button>
+            <button class="icon-btn" id="btn-expand" data-tooltip="Full View">
+                <span class="material-symbols-outlined">open_in_full</span>
+            </button>
+        </div>
 
-            <section id="tab-profiles" class="tab">
-                <div class="toolbar">
-                    <button id="btn-fill-form">Fill Form</button>
-                    <button id="btn-new-profile-here">New Profile for This Page</button>
-                </div>
-                <ul id="profiles-list" class="list"></ul>
-                <div id="current-site-info" class="small"
-                    style="padding: 8px; background: #0e1628; margin: 8px 0; border-radius: 4px;"></div>
-            </section>
-        </main>
+        <!-- Notification Area -->
+        <div id="notification-area" role="status" aria-live="polite"
+            style="position: fixed; top: 10px; right: 10px; z-index: 10000;"></div>
     </div>
 
+    <!-- Full View Modal -->
+    <div id="full-view-modal" class="full-view-modal" style="display: none;">
+        <div class="full-view-content">
+            <div class="full-view-header">
+                <h2>FillFlux</h2>
+                <button class="icon-btn" id="close-full-view" data-tooltip="Close">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+
+            <div class="full-view-nav">
+                <button class="nav-btn active" data-section="vars">
+                    <span class="material-symbols-outlined">data_object</span>
+                    Variables
+                </button>
+                <button class="nav-btn" data-section="sites">
+                    <span class="material-symbols-outlined">language</span>
+                    Sites
+                </button>
+                <button class="nav-btn" data-section="profiles">
+                    <span class="material-symbols-outlined">person</span>
+                    Profiles
+                </button>
+            </div>
+
+            <div class="full-view-body">
+                <section id="full-vars" class="full-section active">
+                    <div class="section-header">
+                        <h3>Variables</h3>
+                        <button class="icon-btn" id="full-add-var" data-tooltip="Add Variable">
+                            <span class="material-symbols-outlined">add</span>
+                        </button>
+                    </div>
+                    <ul id="full-vars-list" class="material-list"></ul>
+                    <div class="add-variable-form">
+                        <input id="full-new-var-name" placeholder="Variable name" />
+                        <input id="full-new-var-value" placeholder="Value (optional)" />
+                        <button id="full-add-var-btn">Add</button>
+                    </div>
+                </section>
+
+                <section id="full-sites" class="full-section">
+                    <div class="section-header">
+                        <h3>Sites</h3>
+                    </div>
+                    <ul id="full-sites-list" class="material-list"></ul>
+                </section>
+
+                <section id="full-profiles" class="full-section">
+                    <div class="section-header">
+                        <h3>Profiles</h3>
+                        <button class="icon-btn" id="full-new-profile" data-tooltip="New Profile">
+                            <span class="material-symbols-outlined">add</span>
+                        </button>
+                    </div>
+                    <ul id="full-profiles-list" class="material-list"></ul>
+                </section>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Root for other modals -->
     <div id="modal-root"
         style="position: fixed; inset: 0; display: none; align-items: center; justify-content: center; z-index: 10001;">
     </div>

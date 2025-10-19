@@ -13,6 +13,22 @@ const $profiles = byId('profiles-list');
 // When picking a selector for a specific mapping, we store the target here:
 window.__ES_EXPECT_SELECTOR__ = null;
 
+// --- Material Design Icon Helper and Tooltip System ---
+function icon(name, size = 'normal') {
+    const sizeClass = size === 'small' ? 'small' : size === 'large' ? 'large' : '';
+    return `<span class="material-symbols-outlined ${sizeClass}">${name}</span>`;
+}
+
+function createIconButton(iconName, tooltip, onClick, size = 'normal') {
+    const button = document.createElement('button');
+    button.className = `icon-btn ${size === 'small' ? 'small' : size === 'large' ? 'large' : ''}`;
+    button.setAttribute('data-tooltip', tooltip);
+    button.setAttribute('aria-label', tooltip);
+    button.innerHTML = icon(iconName, size);
+    if (onClick) button.onclick = onClick;
+    return button;
+}
+
 // --- Utilities: escaping, messaging, tabs query, and modal helpers ---
 function escapeHTML(input) {
     const s = String(input ?? '');
@@ -68,7 +84,41 @@ const I18N_DICTIONARY = {
     'no_inputs_in_profile': 'No inputs configured in this profile.\n\nClick Edit to add some inputs.',
     'no_valid_mappings': 'No valid input mappings found.\n\nMake sure each input has both a selector and a variable selected.',
     'create_variable_first': 'Create a variable first.',
-    'pick_element_first': 'Pick an element first.'
+    'pick_element_first': 'Pick an element first.',
+    'pick_element': 'Pick Element',
+    'copy_from_page': 'Copy from Page',
+    'refresh_scripts': 'Refresh Scripts',
+    'page_controls': 'Page Controls',
+    'floating_vars': 'Floating Vars',
+    'new_variable_name': 'New variable name',
+    'value_optional': 'Value (optional)',
+    'add': 'Add',
+    'save': 'Save',
+    'auto': 'Auto',
+    'del': 'Del',
+    'edit': 'Edit',
+    'delete': 'Delete',
+    'fill_form': 'Fill Form',
+    'new_profile_here': 'New Profile for This Page',
+    'profile_name': 'Profile Name:',
+    'add_input_field': '+ Add Input Field',
+    'save_profile': 'Save Profile',
+    'input_selector': 'Input Selector:',
+    'click_pick_to_select': 'Click Pick to select',
+    'pick': 'Pick',
+    'fill_with_variable': 'Fill with Variable:',
+    'choose_variable': '— Choose Variable —',
+    'remove': 'Remove',
+    'current_page': 'Current page:',
+    'selectors': 'selectors',
+    'inputs_configured': 'inputs configured',
+    'manual': 'manual',
+    'last_updated': 'last updated',
+    'auto_copy_active': 'auto',
+    'minutes_left': 'm left',
+    'until': 'until',
+    'updated': 'updated',
+    'from': 'from:'
 };
 
 function t(key, vars) {
@@ -95,14 +145,16 @@ function buildModalShell(title) {
     const modal = document.createElement('div');
     modal.setAttribute('role', 'dialog');
     modal.setAttribute('aria-modal', 'true');
-    modal.style.cssText = 'background: var(--bg); border: 1px solid #1a2438; border-radius: 8px; width: 100%; max-width: 420px; max-height: 85vh; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.4)';
+    modal.style.cssText = 'background: var(--md-surface); border: 1px solid var(--md-outline-variant); border-radius: var(--radius-lg); width: 100%; max-width: 420px; max-height: 85vh; overflow: hidden; box-shadow: var(--elevation-3);';
     modal.innerHTML = `
-        <div style="display:flex; align-items:center; justify-content:space-between; padding: 12px 14px; border-bottom: 1px solid #1a2438;">
-            <strong>${escapeHTML(title || 'FillFlux')}</strong>
-            <button id="ff-modal-close" class="ghost" style="font-size:16px;">×</button>
+        <div style="display:flex; align-items:center; justify-content:space-between; padding: var(--space-md); border-bottom: 1px solid var(--md-outline-variant);">
+            <h3 style="margin: 0; font-size: var(--font-size-lg); font-weight: 500; color: var(--md-on-surface);">${escapeHTML(title || 'FillFlux')}</h3>
+            <button id="ff-modal-close" class="icon-btn small" aria-label="Close">
+                ${icon('close', 'small')}
+            </button>
         </div>
-        <div id="ff-modal-body" style="padding: 12px 14px;"></div>
-        <div id="ff-modal-actions" style="display:flex; gap:8px; justify-content:flex-end; padding: 10px 14px; border-top: 1px solid #1a2438;"></div>
+        <div id="ff-modal-body" style="padding: var(--space-md);"></div>
+        <div id="ff-modal-actions" style="display:flex; gap: var(--space-sm); justify-content:flex-end; padding: var(--space-md); border-top: 1px solid var(--md-outline-variant);"></div>
     `;
     overlay.appendChild(modal);
     modal.querySelector('#ff-modal-close').addEventListener('click', closeModal);
@@ -141,7 +193,9 @@ async function alertModal(message, title = 'FillFlux') {
         modal.querySelector('#ff-modal-body').innerHTML = `<div style="white-space: pre-wrap;">${escapeHTML(message)}</div>`;
         const actions = modal.querySelector('#ff-modal-actions');
         const ok = document.createElement('button');
-        ok.textContent = 'OK';
+        ok.className = 'primary';
+        ok.className = 'primary';
+        ok.textContent = t('ok');
         ok.addEventListener('click', () => { closeModal(); resolve(); });
         actions.appendChild(ok);
         $modalRoot.appendChild(overlay);
@@ -157,11 +211,13 @@ async function confirmModal(message, title = 'FillFlux') {
         modal.querySelector('#ff-modal-body').innerHTML = `<div style="white-space: pre-wrap;">${escapeHTML(message)}</div>`;
         const actions = modal.querySelector('#ff-modal-actions');
         const cancel = document.createElement('button');
-        cancel.className = 'ghost';
-        cancel.textContent = 'Cancel';
+        cancel.className = 'secondary';
+        cancel.textContent = t('cancel');
         cancel.addEventListener('click', () => { closeModal(); resolve(false); });
         const ok = document.createElement('button');
-        ok.textContent = 'OK';
+        ok.className = 'primary';
+        ok.className = 'primary';
+        ok.textContent = t('ok');
         ok.addEventListener('click', () => { closeModal(); resolve(true); });
         actions.appendChild(cancel);
         actions.appendChild(ok);
@@ -178,17 +234,18 @@ async function inputModal({ title = 'FillFlux', label = 'Enter value', initialVa
         const body = modal.querySelector('#ff-modal-body');
         const id = 'ff-input-' + Math.random().toString(36).slice(2);
         body.innerHTML = `
-            <label for="${id}" style="display:block; margin-bottom:6px;">${escapeHTML(label)}</label>
-            <input id="${id}" value="${escapeHTML(initialValue)}" style="width:100%; padding:6px; background:#0e1628; border:1px solid #1a2438; color:var(--fg); border-radius:4px;" />
+            <label for="${id}" style="display:block; margin-bottom: var(--space-sm); font-size: var(--font-size-sm); color: var(--md-on-surface);">${escapeHTML(label)}</label>
+            <input id="${id}" value="${escapeHTML(initialValue)}" style="width:100%; padding: var(--space-sm); background: var(--md-surface); border: 1px solid var(--md-outline); color: var(--md-on-surface); border-radius: var(--radius-sm); font-size: var(--font-size-sm);" />
         `;
         const input = body.querySelector('input');
         const actions = modal.querySelector('#ff-modal-actions');
         const cancel = document.createElement('button');
-        cancel.className = 'ghost';
-        cancel.textContent = 'Cancel';
+        cancel.className = 'secondary';
+        cancel.textContent = t('cancel');
         cancel.addEventListener('click', () => { const v = null; closeModal(); resolve(v); });
         const ok = document.createElement('button');
-        ok.textContent = 'OK';
+        ok.className = 'primary';
+        ok.textContent = t('ok');
         ok.addEventListener('click', () => { const v = input.value; closeModal(); resolve(v); });
         actions.appendChild(cancel);
         actions.appendChild(ok);
@@ -206,8 +263,8 @@ async function selectModal({ title = 'FillFlux', label = 'Choose', options = [] 
         const body = modal.querySelector('#ff-modal-body');
         const id = 'ff-select-' + Math.random().toString(36).slice(2);
         body.innerHTML = `
-            <label for="${id}" style="display:block; margin-bottom:6px;">${escapeHTML(label)}</label>
-            <select id="${id}" style="width:100%; padding:6px; background:#0e1628; border:1px solid #1a2438; color:var(--fg); border-radius:4px;"></select>
+            <label for="${id}" style="display:block; margin-bottom: var(--space-sm); font-size: var(--font-size-sm); color: var(--md-on-surface);">${escapeHTML(label)}</label>
+            <select id="${id}" style="width:100%; padding: var(--space-sm); background: var(--md-surface); border: 1px solid var(--md-outline); color: var(--md-on-surface); border-radius: var(--radius-sm); font-size: var(--font-size-sm);"></select>
         `;
         const select = body.querySelector('select');
         options.forEach((opt, i) => {
@@ -218,11 +275,12 @@ async function selectModal({ title = 'FillFlux', label = 'Choose', options = [] 
         });
         const actions = modal.querySelector('#ff-modal-actions');
         const cancel = document.createElement('button');
-        cancel.className = 'ghost';
-        cancel.textContent = 'Cancel';
+        cancel.className = 'secondary';
+        cancel.textContent = t('cancel');
         cancel.addEventListener('click', () => { closeModal(); resolve(-1); });
         const ok = document.createElement('button');
-        ok.textContent = 'OK';
+        ok.className = 'primary';
+        ok.textContent = t('ok');
         ok.addEventListener('click', () => { const idx = parseInt(select.value); closeModal(); resolve(idx); });
         actions.appendChild(cancel);
         actions.appendChild(ok);
@@ -407,10 +465,10 @@ function cleanAttributeName(attr) {
 // Render timer status with visual indicators
 function renderTimerStatus(variable) {
     if (!variable.autoCopyUntil || variable.autoCopyUntil <= Date.now()) {
-        let status = '<span style="color: var(--muted);">manual</span>';
+        let status = `<span style="color: var(--muted);">${t('manual')}</span>`;
         if (variable.lastUpdated) {
             const lastUpdate = new Date(variable.lastUpdated).toLocaleTimeString();
-            status += ` • last updated ${lastUpdate}`;
+            status += ` • ${t('last_updated')} ${lastUpdate}`;
         }
         return status;
     }
@@ -423,17 +481,17 @@ function renderTimerStatus(variable) {
     if (remainingMinutes <= 5) color = '#ff9500'; // orange for expiring soon
     if (remainingMinutes <= 1) color = '#ff3b30'; // red for about to expire
 
-    let status = `<span style="color: ${color};">🔄 auto (${remainingMinutes}m left, until ${expiryTime})</span>`;
+    let status = `<span style="color: ${color};">🔄 ${t('auto_copy_active')} (${remainingMinutes}${t('minutes_left')}, ${t('until')} ${expiryTime})</span>`;
 
     if (variable.lastUpdated) {
         const lastUpdate = new Date(variable.lastUpdated).toLocaleTimeString();
-        status += ` • updated ${lastUpdate}`;
+        status += ` • ${t('updated')} ${lastUpdate}`;
     }
 
     if (variable.sourceSelector) {
         const shortSelector = variable.sourceSelector.length > 30 ?
             variable.sourceSelector.substring(0, 30) + '...' : variable.sourceSelector;
-        status += `<br><span style="color: var(--muted); font-size: 10px;">from: ${escapeHTML(shortSelector)}</span>`;
+        status += `<br><span style="color: var(--muted); font-size: 10px;">${t('from')} ${escapeHTML(shortSelector)}</span>`;
     }
 
     return status;
@@ -507,17 +565,22 @@ async function renderVars() {
     Object.values(vars).forEach(v => {
         const li = document.createElement('li');
         li.className = 'card';
+        const statusIcon = v.autoCopyUntil && v.autoCopyUntil > Date.now() ?
+            icon('autorenew', 'small') : icon('radio_button_unchecked', 'small');
+
         li.innerHTML = `
       <div class="row">
         <input value="${escapeHTML(v.name)}" data-role="name" />
         <input value="${escapeHTML(v.value ?? '')}" data-role="value" />
-        <div style="display:flex; gap:4px; justify-content:flex-end">
-          <button data-role="save">Save</button>
-          <button class="ghost" data-role="auto">Auto</button>
-          <button class="danger" data-role="del">Del</button>
+        <div class="actions">
+          <button class="icon-btn small" data-role="save" data-tooltip="Save">${icon('check', 'small')}</button>
+          <button class="icon-btn small" data-role="auto" data-tooltip="Auto-copy">${icon('autorenew', 'small')}</button>
+          <button class="icon-btn small danger" data-role="del" data-tooltip="Delete">${icon('delete', 'small')}</button>
         </div>
       </div>
-      <div class="small">${renderTimerStatus(v)}</div>
+      <div class="small">
+        ${statusIcon} ${renderTimerStatus(v)}
+      </div>
     `;
         // events
         li.querySelector('[data-role="save"]').onclick = async () => {
@@ -687,11 +750,11 @@ async function renderSites() {
         <input value="${escapeHTML(s.title)}" data-role="title" />
         <input value="${escapeHTML(s.urlPattern)}" data-role="pattern" />
         <div style="display:flex; gap:4px; justify-content:flex-end">
-          <button data-role="save">Save</button>
-          <button class="danger" data-role="del">Del</button>
+          <button data-role="save" data-i18n="save">${t('save')}</button>
+          <button class="danger" data-role="del" data-i18n="del">${t('del')}</button>
         </div>
       </div>
-      <div class="small">${els} selectors</div>
+      <div class="small">${els} ${t('selectors')}</div>
     `;
         li.querySelector('[data-role="save"]').onclick = async () => {
             const title = li.querySelector('[data-role="title"]').value.trim();
@@ -717,7 +780,7 @@ async function renderProfiles() {
     // Show current page info
     const { url } = await sendMessageAsync('GET_ACTIVE_TAB_URL');
     const currentDomain = url ? new URL(url).hostname : 'unknown';
-    byId('current-site-info').textContent = `Current page: ${currentDomain}`;
+    byId('current-site-info').textContent = `${t('current_page')} ${currentDomain}`;
 
     const { [KEYS.PROFILES]: profiles = {} } = await getAll();
     $profiles.innerHTML = '';
@@ -747,11 +810,11 @@ async function renderProfiles() {
             <div class="row">
                 <strong>${escapeHTML(p.name)}</strong>
                 <div style="display:flex; gap:4px; justify-content:flex-end">
-                    <button data-role="edit">Edit</button>
-                    <button class="danger" data-role="del">Delete</button>
+                    <button data-role="edit" data-i18n="edit">${t('edit')}</button>
+                    <button class="danger" data-role="del" data-i18n="delete">${t('delete')}</button>
                 </div>
             </div>
-            <div class="small">${p.inputs?.length || 0} inputs configured</div>
+            <div class="small">${p.inputs?.length || 0} ${t('inputs_configured')}</div>
             <div class="inputs-list" style="margin-top: 8px;"></div>
         `;
 
@@ -826,19 +889,19 @@ async function editProfile(profileId) {
         </div>
         
         <div style="margin-bottom: 16px;">
-            <label>Profile Name:</label>
+            <label>${t('profile_name')}</label>
             <input id="edit-profile-name" value="${escapeHTML(profile.name)}" style="width: 100%; margin-top: 4px; padding: 6px; background: #0e1628; border: 1px solid #1a2438; color: var(--fg); border-radius: 4px;" />
         </div>
         
         <div style="margin-bottom: 16px;">
-            <button id="add-input" style="background: var(--accent); color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer;">+ Add Input Field</button>
+            <button id="add-input" style="background: var(--accent); color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer;">${t('add_input_field')}</button>
         </div>
         
         <div id="inputs-container"></div>
         
         <div style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; padding-top: 16px; border-top: 1px solid #1a2438;">
-            <button id="save-profile" style="background: var(--accent); color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">Save Profile</button>
-            <button id="cancel-edit" style="background: #333; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">Cancel</button>
+            <button id="save-profile" style="background: var(--accent); color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">${t('save_profile')}</button>
+            <button id="cancel-edit" style="background: #333; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer;">${t('cancel')}</button>
         </div>
     `;
 
@@ -861,28 +924,28 @@ async function editProfile(profileId) {
 
             inputDiv.innerHTML = `
                 <div style="margin-bottom: 8px;">
-                    <label>Input Selector:</label>
+                    <label>${t('input_selector')}</label>
                     <div style="display: flex; gap: 4px; margin-top: 4px;">
                         <input class="selector-input" data-idx="${idx}" value="${escapeHTML(input.selector || '')}" 
                                style="flex: 1; padding: 6px; background: #0e1628; border: 1px solid #1a2438; color: var(--fg); border-radius: 4px;" 
-                               placeholder="Click Pick to select" readonly />
+                               placeholder="${t('click_pick_to_select')}" readonly />
                         <button class="pick-input" data-idx="${idx}" 
-                                style="background: var(--accent); color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer;">Pick</button>
+                                style="background: var(--accent); color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer;">${t('pick')}</button>
                     </div>
                 </div>
                 
                 <div style="margin-bottom: 8px;">
-                    <label>Fill with Variable:</label>
+                    <label>${t('fill_with_variable')}</label>
                     <select class="var-select" data-idx="${idx}" 
                             style="width: 100%; margin-top: 4px; padding: 6px; background: #0e1628; border: 1px solid #1a2438; color: var(--fg); border-radius: 4px;">
-                        <option value="">— Choose Variable —</option>
+                        <option value="">${t('choose_variable')}</option>
                         ${optionsHtml}
                     </select>
                 </div>
                 
                 <div style="text-align: right;">
                     <button class="remove-input" data-idx="${idx}"
-                            style="background: #dc3545; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;">Remove</button>
+                            style="background: #dc3545; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 12px;">${t('remove')}</button>
                 </div>
             `;
 
@@ -1148,7 +1211,7 @@ if (!window.__ES_POPUP_BOUND__) {
 byId('btn-copy-active').onclick = async () => {
     const all = await getAll();
     const vars = Object.values(all[KEYS.VARS]);
-    if (!vars.length) { await alertModal('Create a variable first.'); return; }
+    if (!vars.length) { await alertModal(t('create_variable_first')); return; }
     const varIdx = await inputModal({ title: 'FillFlux', label: 'Which variable index to update?', initialValue: '0' });
     const choice = vars[+varIdx || 0];
     if (!choice) return;
@@ -1159,7 +1222,7 @@ byId('btn-copy-active').onclick = async () => {
     const allEls = sites
         .filter(s => matchesPattern(s.urlPattern, activeUrl || ''))
         .flatMap(s => s.elements.map(e => ({ site: s, selector: e.selector })));
-    if (!allEls.length) { await alertModal('Pick an element first.'); return; }
+    if (!allEls.length) { await alertModal(t('pick_element_first')); return; }
     const elIdx = await inputModal({ title: 'FillFlux', label: 'Which element selector index?', initialValue: '0' });
     const elChoice = allEls[+elIdx || 0];
     if (!elChoice) return;
@@ -1199,7 +1262,7 @@ byId('btn-fill-form').onclick = async () => {
         p.sitePattern && matchesPattern(p.sitePattern, url || '')
     );
 
-    if (matchingProfiles.length === 0) { return alertModal('No profiles found for this page.\n\nCreate a profile first using "New Profile for This Page".'); }
+    if (matchingProfiles.length === 0) { return alertModal(t('no_profiles_for_site')); }
 
     let profile;
     if (matchingProfiles.length === 1) {
@@ -1214,7 +1277,7 @@ byId('btn-fill-form').onclick = async () => {
         profile = matchingProfiles[idx];
     }
 
-    if (!profile || !profile.inputs || profile.inputs.length === 0) { return alertModal('No inputs configured in this profile.\n\nClick Edit to add some inputs.'); }
+    if (!profile || !profile.inputs || profile.inputs.length === 0) { return alertModal(t('no_inputs_in_profile')); }
 
     // Build mappings from profile inputs
     const varsByName = Object.fromEntries(Object.values(all[KEYS.VARS]).map(v => [v.name, v.value]));
@@ -1225,7 +1288,7 @@ byId('btn-fill-form').onclick = async () => {
             return { selector: input.selector, value };
         });
 
-    if (mappings.length === 0) { return alertModal('No valid input mappings found.\n\nMake sure each input has both a selector and a variable selected.'); }
+    if (mappings.length === 0) { return alertModal(t('no_valid_mappings')); }
 
     try {
         const res = await sendMessageAsync('PASTE_PROFILE', { mappings });
@@ -1282,7 +1345,326 @@ chrome.runtime.onMessage.addListener((msg) => {
     }
 });
 
-// Initial renders
+// --- Compact Layout Management ---
+let fullViewModal = null;
+
+function showFullView() {
+    fullViewModal = document.getElementById('full-view-modal');
+    if (fullViewModal) {
+        fullViewModal.style.display = 'flex';
+        renderFullView();
+        // Focus first button for accessibility
+        const firstBtn = fullViewModal.querySelector('.nav-btn');
+        if (firstBtn) firstBtn.focus();
+    }
+}
+
+function hideFullView() {
+    if (fullViewModal) {
+        fullViewModal.style.display = 'none';
+    }
+}
+
+function renderFullView() {
+    renderFullVars();
+    renderFullSites();
+    renderFullProfiles();
+}
+
+// --- Full View Renderers ---
+async function renderFullVars() {
+    const { [KEYS.VARS]: vars = {} } = await getAll();
+    const $fullVarsList = document.getElementById('full-vars-list');
+    if (!$fullVarsList) return;
+
+    $fullVarsList.innerHTML = '';
+    Object.values(vars).forEach(v => {
+        const li = document.createElement('li');
+        li.className = 'card';
+
+        const statusIcon = v.autoCopyUntil && v.autoCopyUntil > Date.now() ?
+            icon('autorenew', 'small') : icon('radio_button_unchecked', 'small');
+
+        li.innerHTML = `
+            <div class="row">
+                <input value="${escapeHTML(v.name)}" data-role="name" />
+                <input value="${escapeHTML(v.value ?? '')}" data-role="value" />
+                <div class="actions">
+                    <button class="icon-btn small" data-role="save" data-tooltip="Save">${icon('check', 'small')}</button>
+                    <button class="icon-btn small" data-role="auto" data-tooltip="Auto-copy">${icon('autorenew', 'small')}</button>
+                    <button class="icon-btn small danger" data-role="del" data-tooltip="Delete">${icon('delete', 'small')}</button>
+                </div>
+            </div>
+            <div class="small">
+                ${statusIcon} ${renderTimerStatus(v)}
+            </div>
+        `;
+
+        // Event handlers
+        li.querySelector('[data-role="save"]').onclick = async () => {
+            const name = li.querySelector('[data-role="name"]').value.trim();
+            const value = li.querySelector('[data-role="value"]').value;
+            const all = await getAll();
+            all[KEYS.VARS][v.id] = { ...v, name, value };
+            await set({ [KEYS.VARS]: all[KEYS.VARS] });
+            renderFullVars();
+            updateCompactStatus();
+        };
+
+        li.querySelector('[data-role="del"]').onclick = async () => {
+            const ok = await confirmModal(`Delete variable "${escapeHTML(v.name)}"?`);
+            if (!ok) return;
+            const all = await getAll();
+            delete all[KEYS.VARS][v.id];
+            await set({ [KEYS.VARS]: all[KEYS.VARS] });
+            renderFullVars();
+            updateCompactStatus();
+        };
+
+        li.querySelector('[data-role="auto"]').onclick = async () => {
+            if (v.autoCopyUntil && v.autoCopyUntil > Date.now()) {
+                const choice = await inputModal({
+                    title: 'FillFlux',
+                    label: `Auto-copy active until ${new Date(v.autoCopyUntil).toLocaleTimeString()}\nEnter minutes to extend (0 to stop):`,
+                    initialValue: '0'
+                });
+                const minutes = +(choice || '0');
+
+                if (minutes === 0) {
+                    const all = await getAll();
+                    delete all[KEYS.VARS][v.id].autoCopyUntil;
+                    await set({ [KEYS.VARS]: all[KEYS.VARS] });
+                    chrome.runtime.sendMessage({ type: 'CLEAR_ALARM', payload: { varId: v.id } });
+                    renderFullVars();
+                } else if (minutes > 0) {
+                    const until = Date.now() + minutes * 60 * 1000;
+                    const all = await getAll();
+                    all[KEYS.VARS][v.id] = { ...v, autoCopyUntil: until };
+                    await set({ [KEYS.VARS]: all[KEYS.VARS] });
+                    chrome.runtime.sendMessage({ type: 'SET_ALARM', payload: { varId: v.id, minutes } });
+                    renderFullVars();
+                    startAutoRefresh(v.id);
+                }
+            } else {
+                const input = await inputModal({
+                    title: 'FillFlux',
+                    label: 'Auto-copy for how many minutes?',
+                    initialValue: '10'
+                });
+                const minutes = +(input || '10') || 10;
+                if (minutes > 0) {
+                    const until = Date.now() + minutes * 60 * 1000;
+                    const all = await getAll();
+                    all[KEYS.VARS][v.id] = { ...v, autoCopyUntil: until };
+                    await set({ [KEYS.VARS]: all[KEYS.VARS] });
+                    chrome.runtime.sendMessage({ type: 'SET_ALARM', payload: { varId: v.id, minutes } });
+                    renderFullVars();
+                    startAutoRefresh(v.id);
+                }
+            }
+        };
+
+        $fullVarsList.appendChild(li);
+    });
+}
+
+async function renderFullSites() {
+    const { url } = await sendMessageAsync('GET_ACTIVE_TAB_URL');
+    const $activeUrl = document.getElementById('active-url');
+    if ($activeUrl) $activeUrl.textContent = url || '';
+
+    const { [KEYS.SITES]: sites = {} } = await getAll();
+    const $fullSitesList = document.getElementById('full-sites-list');
+    if (!$fullSitesList) return;
+
+    $fullSitesList.innerHTML = '';
+    Object.values(sites).forEach(s => {
+        const li = document.createElement('li');
+        li.className = 'card';
+        const els = s.elements?.length || 0;
+        li.innerHTML = `
+            <div class="row">
+                <input value="${escapeHTML(s.title)}" data-role="title" />
+                <input value="${escapeHTML(s.urlPattern)}" data-role="pattern" />
+                <div class="actions">
+                    <button class="icon-btn small" data-role="save" data-tooltip="Save">${icon('check', 'small')}</button>
+                    <button class="icon-btn small danger" data-role="del" data-tooltip="Delete">${icon('delete', 'small')}</button>
+                </div>
+            </div>
+            <div class="small">${els} ${t('selectors')}</div>
+        `;
+
+        li.querySelector('[data-role="save"]').onclick = async () => {
+            const title = li.querySelector('[data-role="title"]').value.trim();
+            const urlPattern = li.querySelector('[data-role="pattern"]').value.trim();
+            const all = await getAll();
+            all[KEYS.SITES][s.id] = { ...s, title, urlPattern };
+            await set({ [KEYS.SITES]: all[KEYS.SITES] });
+            renderFullSites();
+        };
+
+        li.querySelector('[data-role="del"]').onclick = async () => {
+            const ok = await confirmModal(`Delete site "${escapeHTML(s.title)}"?`);
+            if (!ok) return;
+            const all = await getAll();
+            delete all[KEYS.SITES][s.id];
+            await set({ [KEYS.SITES]: all[KEYS.SITES] });
+            renderFullSites();
+        };
+
+        $fullSitesList.appendChild(li);
+    });
+}
+
+async function renderFullProfiles() {
+    const { url } = await sendMessageAsync('GET_ACTIVE_TAB_URL');
+    const currentDomain = url ? new URL(url).hostname : 'unknown';
+    const $currentSiteInfo = document.getElementById('current-site-info');
+    if ($currentSiteInfo) $currentSiteInfo.textContent = `${t('current_page')} ${currentDomain}`;
+
+    const { [KEYS.PROFILES]: profiles = {} } = await getAll();
+    const $fullProfilesList = document.getElementById('full-profiles-list');
+    if (!$fullProfilesList) return;
+
+    $fullProfilesList.innerHTML = '';
+
+    const currentProfiles = Object.values(profiles).filter(p =>
+        p.sitePattern && matchesPattern(p.sitePattern, url || '')
+    );
+
+    if (currentProfiles.length === 0) {
+        const notice = document.createElement('div');
+        notice.className = 'card';
+        notice.innerHTML = `
+            <div style="text-align: center; padding: 20px; color: var(--md-on-surface-variant);">
+                No profiles for this site yet.<br>
+                Click "New Profile" to create one.
+            </div>
+        `;
+        $fullProfilesList.appendChild(notice);
+        return;
+    }
+
+    currentProfiles.forEach(p => {
+        const li = document.createElement('li');
+        li.className = 'card';
+        li.innerHTML = `
+            <div class="row">
+                <strong>${escapeHTML(p.name)}</strong>
+                <div class="actions">
+                    <button class="icon-btn small" data-role="edit" data-tooltip="Edit">${icon('edit', 'small')}</button>
+                    <button class="icon-btn small danger" data-role="del" data-tooltip="Delete">${icon('delete', 'small')}</button>
+                </div>
+            </div>
+            <div class="small">${p.inputs?.length || 0} ${t('inputs_configured')}</div>
+            <div class="inputs-list" style="margin-top: 8px;"></div>
+        `;
+
+        const inputsList = li.querySelector('.inputs-list');
+
+        (p.inputs || []).forEach((input, idx) => {
+            const inputDiv = document.createElement('div');
+            inputDiv.style.cssText = 'border: 1px solid var(--md-outline-variant); border-radius: var(--radius-sm); padding: var(--space-sm); margin-bottom: var(--space-xs);';
+
+            const varName = escapeHTML(input.varName || 'No variable selected');
+            const selectorPreviewRaw = input.selector.length > 40 ?
+                input.selector.substring(0, 40) + '...' : input.selector;
+            const selectorPreview = escapeHTML(selectorPreviewRaw);
+
+            inputDiv.innerHTML = `
+                <div class="small" style="color: var(--md-on-surface-variant);">${selectorPreview}</div>
+                <div style="color: var(--md-primary);">→ ${varName}</div>
+            `;
+            inputsList.appendChild(inputDiv);
+        });
+
+        li.querySelector('[data-role="edit"]').onclick = () => {
+            editProfile(p.id);
+        };
+
+        li.querySelector('[data-role="del"]').onclick = async () => {
+            const ok = await confirmModal(`Delete profile "${escapeHTML(p.name)}"?`);
+            if (!ok) return;
+            const all = await getAll();
+            delete all[KEYS.PROFILES][p.id];
+            await set({ [KEYS.PROFILES]: all[KEYS.PROFILES] });
+            renderFullProfiles();
+        };
+
+        $fullProfilesList.appendChild(li);
+    });
+}
+
+// --- Compact Status Updates ---
+async function updateCompactStatus() {
+    const { [KEYS.VARS]: vars = {} } = await getAll();
+    const activeCount = Object.values(vars).length;
+    const $activeVarsCount = document.getElementById('active-vars-count');
+    if ($activeVarsCount) $activeVarsCount.textContent = activeCount;
+
+    const { url } = await sendMessageAsync('GET_ACTIVE_TAB_URL');
+    const currentDomain = url ? new URL(url).hostname : 'unknown';
+    const $currentSiteName = document.getElementById('current-site-name');
+    if ($currentSiteName) {
+        $currentSiteName.textContent = currentDomain;
+        $currentSiteName.className = 'status-indicator active';
+    }
+}
+
+// --- Event Handlers ---
+document.addEventListener('DOMContentLoaded', () => {
+    // Full view modal handlers
+    const $btnExpand = document.getElementById('btn-expand');
+    const $closeFullView = document.getElementById('close-full-view');
+    const $fullViewModal = document.getElementById('full-view-modal');
+
+    if ($btnExpand) $btnExpand.onclick = showFullView;
+    if ($closeFullView) $closeFullView.onclick = hideFullView;
+    if ($fullViewModal) {
+        $fullViewModal.onclick = (e) => {
+            if (e.target === $fullViewModal) hideFullView();
+        };
+    }
+
+    // Navigation handlers
+    const navBtns = document.querySelectorAll('.nav-btn');
+    navBtns.forEach(btn => {
+        btn.onclick = () => {
+            navBtns.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+
+            const section = btn.dataset.section;
+            document.querySelectorAll('.full-section').forEach(s => s.classList.remove('active'));
+            document.getElementById(`full-${section}`).classList.add('active');
+        };
+    });
+
+    // Full view form handlers
+    const $fullAddVarBtn = document.getElementById('full-add-var-btn');
+    if ($fullAddVarBtn) {
+        $fullAddVarBtn.onclick = async () => {
+            const name = document.getElementById('full-new-var-name')?.value.trim();
+            const value = document.getElementById('full-new-var-value')?.value;
+            if (!name) return;
+
+            try {
+                await createVariable(name, value);
+                document.getElementById('full-new-var-name').value = '';
+                document.getElementById('full-new-var-value').value = '';
+                renderFullVars();
+                updateCompactStatus();
+                showNotification(`Variable "${name}" created successfully`, 'success');
+            } catch (error) {
+                showNotification(`Failed to create variable: ${error.message}`, 'error');
+            }
+        };
+    }
+
+    // Initial status update
+    updateCompactStatus();
+});
+
+// Initial renders (legacy support)
 renderVars();
 renderSites();
 renderProfiles();

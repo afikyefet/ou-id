@@ -1,0 +1,427 @@
+/* Material Design 3 Design System for FillFlux */
+
+:root {
+    /* Material Design 3 colors */
+    --md-primary: #6750A4;
+    --md-on-primary: #FFFFFF;
+    --md-primary-container: #EADDFF;
+    --md-on-primary-container: #21005D;
+
+    --md-secondary: #625B71;
+    --md-on-secondary: #FFFFFF;
+    --md-secondary-container: #E8DEF8;
+    --md-on-secondary-container: #1D192B;
+
+    --md-surface: #FEFBFF;
+    --md-on-surface: #1C1B1F;
+    --md-surface-variant: #E7E0EC;
+    --md-on-surface-variant: #49454F;
+
+    --md-outline: #79747E;
+    --md-outline-variant: #CAC4D0;
+
+    --md-error: #BA1A1A;
+    --md-on-error: #FFFFFF;
+    --md-error-container: #FFDAD6;
+    --md-on-error-container: #410002;
+
+    --md-success: #006A6B;
+    --md-on-success: #FFFFFF;
+
+    /* Spacing (4px base unit) */
+    --space-xs: 4px;
+    --space-sm: 8px;
+    --space-md: 12px;
+    --space-lg: 16px;
+    --space-xl: 20px;
+    --space-2xl: 24px;
+
+    /* Elevation shadows */
+    --elevation-1: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24);
+    --elevation-2: 0 3px 6px rgba(0, 0, 0, 0.16), 0 3px 6px rgba(0, 0, 0, 0.23);
+    --elevation-3: 0 10px 20px rgba(0, 0, 0, 0.19), 0 6px 6px rgba(0, 0, 0, 0.23);
+
+    /* Border radius */
+    --radius-xs: 2px;
+    --radius-sm: 4px;
+    --radius-md: 8px;
+    --radius-lg: 12px;
+    --radius-xl: 16px;
+    --radius-full: 999px;
+
+    /* Typography */
+    --font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --font-size-xs: 11px;
+    --font-size-sm: 12px;
+    --font-size-md: 14px;
+    --font-size-lg: 16px;
+    --font-size-xl: 18px;
+
+    /* Transitions */
+    --transition-fast: 150ms ease;
+    --transition-normal: 250ms ease;
+    --transition-slow: 350ms ease;
+}
+
+/* Dark theme support */
+@media (prefers-color-scheme: dark) {
+    :root {
+        --md-primary: #D0BCFF;
+        --md-on-primary: #381E72;
+        --md-primary-container: #4F378B;
+        --md-on-primary-container: #EADDFF;
+
+        --md-secondary: #CCC2DC;
+        --md-on-secondary: #332D41;
+        --md-secondary-container: #4A4458;
+        --md-on-secondary-container: #E8DEF8;
+
+        --md-surface: #141218;
+        --md-on-surface: #E6E0E9;
+        --md-surface-variant: #49454F;
+        --md-on-surface-variant: #CAC4D0;
+
+        --md-outline: #938F99;
+        --md-outline-variant: #49454F;
+
+        --md-error: #FFB4AB;
+        --md-on-error: #690005;
+        --md-error-container: #93000A;
+        --md-on-error-container: #FFDAD6;
+
+        --md-success: #4DD0E1;
+        --md-on-success: #003739;
+    }
+}
+
+/* Icon button component */
+.icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    background: transparent;
+    border: none;
+    border-radius: var(--radius-sm);
+    color: var(--md-on-surface);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    position: relative;
+    overflow: hidden;
+}
+
+.icon-btn:hover {
+    background: var(--md-surface-variant);
+    color: var(--md-on-surface);
+}
+
+.icon-btn:focus {
+    outline: 2px solid var(--md-primary);
+    outline-offset: 2px;
+}
+
+.icon-btn:active {
+    transform: scale(0.95);
+}
+
+.icon-btn .material-symbols-outlined {
+    font-size: 18px;
+    font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+}
+
+/* Icon button sizes */
+.icon-btn.small {
+    width: 20px;
+    height: 20px;
+}
+
+.icon-btn.small .material-symbols-outlined {
+    font-size: 16px;
+}
+
+.icon-btn.large {
+    width: 32px;
+    height: 32px;
+}
+
+.icon-btn.large .material-symbols-outlined {
+    font-size: 24px;
+}
+
+/* Tooltip system */
+[data-tooltip] {
+    position: relative;
+}
+
+[data-tooltip]::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: calc(100% + var(--space-xs));
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.9);
+    color: white;
+    padding: var(--space-xs) var(--space-sm);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-size-xs);
+    font-family: var(--font-family);
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity var(--transition-fast);
+    z-index: 1000;
+}
+
+[data-tooltip]:hover::after,
+[data-tooltip]:focus::after {
+    opacity: 1;
+}
+
+/* Ripple effect */
+.icon-btn::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.1);
+    transform: translate(-50%, -50%);
+    transition: width var(--transition-fast), height var(--transition-fast);
+    pointer-events: none;
+}
+
+.icon-btn:active::before {
+    width: 40px;
+    height: 40px;
+}
+
+/* Enhanced button ripple */
+button {
+    position: relative;
+    overflow: hidden;
+}
+
+button::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 0;
+    height: 0;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.2);
+    transform: translate(-50%, -50%);
+    transition: width var(--transition-fast), height var(--transition-fast);
+    pointer-events: none;
+}
+
+button:active::before {
+    width: 200px;
+    height: 200px;
+}
+
+/* Focus indicators */
+.icon-btn:focus-visible,
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+    outline: 2px solid var(--md-primary);
+    outline-offset: 2px;
+}
+
+/* Smooth transitions for all interactive elements */
+.icon-btn,
+button,
+input,
+select,
+.material-card,
+.nav-btn {
+    transition: all var(--transition-fast);
+}
+
+/* Hover effects */
+.material-card:hover {
+    transform: translateY(-1px);
+}
+
+.nav-btn:hover {
+    transform: translateY(-1px);
+}
+
+/* Loading states */
+.loading {
+    opacity: 0.6;
+    pointer-events: none;
+}
+
+.loading::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 16px;
+    height: 16px;
+    margin: -8px 0 0 -8px;
+    border: 2px solid var(--md-outline);
+    border-top: 2px solid var(--md-primary);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+/* Material card component */
+.material-card {
+    background: var(--md-surface);
+    border: 1px solid var(--md-outline-variant);
+    border-radius: var(--radius-lg);
+    padding: var(--space-md);
+    box-shadow: var(--elevation-1);
+    transition: box-shadow var(--transition-fast);
+}
+
+.material-card:hover {
+    box-shadow: var(--elevation-2);
+}
+
+.material-card.elevated {
+    box-shadow: var(--elevation-2);
+}
+
+.material-card.elevated:hover {
+    box-shadow: var(--elevation-3);
+}
+
+/* Compact layout utilities */
+.compact-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-sm) var(--space-md);
+    background: var(--md-surface);
+    border-bottom: 1px solid var(--md-outline-variant);
+    height: 24px;
+}
+
+.compact-header .app-title {
+    font-size: var(--font-size-md);
+    font-weight: 500;
+    color: var(--md-on-surface);
+    flex: 1;
+    text-align: center;
+}
+
+.compact-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-sm);
+    padding: var(--space-sm);
+    background: var(--md-surface-variant);
+}
+
+.compact-status {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--space-sm) var(--space-md);
+    background: var(--md-surface);
+    font-size: var(--font-size-sm);
+    color: var(--md-on-surface-variant);
+}
+
+.compact-actions {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-sm);
+    padding: var(--space-sm);
+    background: var(--md-surface-variant);
+}
+
+/* Status indicators */
+.status-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-xs);
+    font-size: var(--font-size-xs);
+}
+
+.status-indicator .material-symbols-outlined {
+    font-size: 14px;
+}
+
+.status-indicator.active {
+    color: var(--md-primary);
+}
+
+.status-indicator.success {
+    color: var(--md-success);
+}
+
+.status-indicator.error {
+    color: var(--md-error);
+}
+
+.status-indicator.warning {
+    color: #FF9800;
+}
+
+/* Animation utilities */
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.spin {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes pulse {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.5;
+    }
+}
+
+.pulse {
+    animation: pulse 2s ease-in-out infinite;
+}
+
+/* Focus management */
+.focus-trap {
+    position: relative;
+}
+
+.focus-trap:focus-within {
+    outline: 2px solid var(--md-primary);
+    outline-offset: 2px;
+}
+
+/* Responsive utilities */
+@media (max-width: 200px) {
+    .compact-header .app-title {
+        font-size: var(--font-size-sm);
+    }
+
+    .icon-btn {
+        width: 20px;
+        height: 20px;
+    }
+
+    .icon-btn .material-symbols-outlined {
+        font-size: 16px;
+    }
+}

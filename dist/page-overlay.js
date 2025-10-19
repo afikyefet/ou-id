@@ -17,19 +17,22 @@
     let pasteChip = null;         // DOM for the chip
     let focusedEl = null;         // currently focused editable element
 
-    // CSS Custom Properties for theming
+    // Material Design CSS Custom Properties for theming
     const themeStyles = `
         :root {
-            --es-primary: #0A84FF; /* iOS primary */
-            --es-secondary: #6B7280; /* subtle secondary */
-            --es-success: #34C759; /* iOS success */
-            --es-background: rgba(255,255,255,0.92);
-            --es-surface: rgba(0,0,0,0.06);
-            --es-text: #111111;
-            --es-text-muted: rgba(60,60,67,0.6);
-            --es-accent: #0A84FF;
-            --es-border: rgba(0,0,0,0.12);
+            --es-primary: var(--md-primary, #6750A4);
+            --es-secondary: var(--md-secondary, #625B71);
+            --es-success: var(--md-success, #006A6B);
+            --es-error: var(--md-error, #BA1A1A);
+            --es-background: var(--md-surface, #FEFBFF);
+            --es-surface: var(--md-surface-variant, #E7E0EC);
+            --es-text: var(--md-on-surface, #1C1B1F);
+            --es-text-muted: var(--md-on-surface-variant, #49454F);
+            --es-accent: var(--md-primary, #6750A4);
+            --es-border: var(--md-outline-variant, #CAC4D0);
             --es-shadow: rgba(0,0,0,0.15);
+            --es-radius: var(--radius-md, 8px);
+            --es-space: var(--space-sm, 8px);
         }
         
         [data-es-theme="light"] {
@@ -251,11 +254,11 @@
             max-height: 350px !important;
             background: var(--es-background) !important;
             border: 1px solid var(--es-border) !important;
-            border-radius: 12px !important;
+            border-radius: var(--es-radius) !important;
             box-shadow: 0 12px 30px var(--es-shadow) !important;
             backdrop-filter: blur(14px) !important;
             z-index: 2147483645 !important;
-            font-family: -apple-system, system-ui, sans-serif !important;
+            font-family: var(--font-family, -apple-system, system-ui, sans-serif) !important;
             color: var(--es-text) !important;
             resize: both !important;
             overflow: hidden !important;
@@ -436,6 +439,12 @@
             outline-offset: 2px !important;
         }
     `;
+
+    // Inject Material Symbols font
+    const fontLink = document.createElement('link');
+    fontLink.href = 'https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght@300';
+    fontLink.rel = 'stylesheet';
+    document.head.appendChild(fontLink);
 
     // Inject theme and overlay styles
     const themeStyleSheet = document.createElement('style');
@@ -781,9 +790,15 @@
       <div class="es-floating-header">
         <h3 class="es-floating-title">Variables</h3>
         <div class="es-floating-actions">
-          <button class="es-floating-theme" title="Theme">◎</button>
-          <button class="es-floating-min" title="Minimize">–</button>
-          <button class="es-floating-close" title="Close">×</button>
+          <button class="es-floating-theme icon-btn small" title="Switch Theme" aria-label="Switch Theme">
+            <span class="material-symbols-outlined">palette</span>
+          </button>
+          <button class="es-floating-min icon-btn small" title="Minimize" aria-label="Minimize">
+            <span class="material-symbols-outlined">minimize</span>
+          </button>
+          <button class="es-floating-close icon-btn small" title="Close" aria-label="Close">
+            <span class="material-symbols-outlined">close</span>
+          </button>
         </div>
       </div>
       <div class="es-floating-content">
@@ -848,7 +863,7 @@
 
         // A11y
         panel.setAttribute('role', 'dialog');
-        panel.setAttribute('aria-label', 'Element Snapper Variables Panel');
+        panel.setAttribute('aria-label', 'FillFlux Variables Panel');
         panel.setAttribute('tabindex', '0');
         themeBtn.setAttribute('aria-label', 'Switch theme');
         minBtn.setAttribute('aria-label', 'Minimize');
@@ -893,11 +908,8 @@
                     <div class="es-var-name">${escapeHtml(variable.name)}</div>
                     <div class="es-var-value" title="${escapeHtml(variable.value)}">${escapeHtml(variable.value || 'No value')}</div>
                 </div>
-                <button class="es-var-copy" data-var-id="${variable.id}">
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
-                    </svg>
-                    Copy
+                <button class="es-var-copy icon-btn small" data-var-id="${variable.id}" title="Copy" aria-label="Copy">
+                    <span class="material-symbols-outlined">content_copy</span>
                 </button>
             `;
 
@@ -941,11 +953,8 @@
                     <div class="es-var-name">${escapeHtml(varData.name)}</div>
                     <div class="es-var-value" title="${escapeHtml(varData.newValue)}">${escapeHtml(varData.newValue || 'No value')}</div>
                 </div>
-                <button class="es-var-copy" data-value="${escapeHtml(varData.newValue)}">
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
-                    </svg>
-                    Copy
+                <button class="es-var-copy icon-btn small" data-value="${escapeHtml(varData.newValue)}" title="Copy" aria-label="Copy">
+                    <span class="material-symbols-outlined">content_copy</span>
                 </button>
             `;
 
@@ -1105,9 +1114,7 @@
         const indicator = document.createElement('button');
         indicator.className = 'es-copy-indicator';
         indicator.innerHTML = `
-            <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                <path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>
-            </svg>
+            <span class="material-symbols-outlined" style="font-size: 12px;">content_copy</span>
         `;
 
         // Variable name only in tooltip
@@ -1180,9 +1187,7 @@
         if (suggestions.length === 1) {
             const suggestion = suggestions[0];
             button.innerHTML = `
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M19 2h-4.18C14.4.84 13.3 0 12 0c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm0 4c1.66 0 3-1.34 3-3h3v16H6V3h3c0 1.66 1.34 3 3 3z"/>
-                </svg>
+                <span class="material-symbols-outlined" style="font-size: 12px;">content_paste</span>
                 ${suggestion.varName || 'Paste'}
             `;
             button.title = `Paste ${suggestion.varName}: "${suggestion.value}"`;
@@ -1218,9 +1223,7 @@
         } else {
             // Multiple suggestions - show dropdown
             button.innerHTML = `
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-                    <path d="M19 2h-4.18C14.4.84 13.3 0 12 0c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm0 4c1.66 0 3-1.34 3-3h3v16H6V3h3c0 1.66 1.34 3 3 3z"/>
-                </svg>
+                <span class="material-symbols-outlined" style="font-size: 12px;">content_paste</span>
                 Paste (${suggestions.length})
             `;
             button.title = `${suggestions.length} paste options available`;
@@ -1736,7 +1739,7 @@
         subtree: true
     });
 
-    console.log('Element Snapper page overlay initialized');
+    console.log('FillFlux page overlay initialized');
     console.log('Initial data:', currentData);
     console.log('Overlay enabled:', isEnabled);
 })();
