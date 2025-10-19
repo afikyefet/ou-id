@@ -1,5 +1,5 @@
 /**
- * @fileoverview Settings store for FluxFill extension
+ * @fileoverview Settings store for FillFlux extension
  * Provides centralized settings management with schema validation, persistence, and change events
  */
 
@@ -118,7 +118,7 @@ const DEFAULT_SETTINGS = {
  */
 function validateAndClampSettings(settings) {
     const validated = { ...DEFAULT_SETTINGS };
-    
+
     // Deep merge with validation
     if (settings.general) {
         validated.general = {
@@ -129,7 +129,7 @@ function validateAndClampSettings(settings) {
             telemetryEnabled: typeof settings.general.telemetryEnabled === 'boolean' ? settings.general.telemetryEnabled : validated.general.telemetryEnabled
         };
     }
-    
+
     if (settings.behavior) {
         validated.behavior = {
             ...validated.behavior,
@@ -138,11 +138,11 @@ function validateAndClampSettings(settings) {
             nudgeStepPx: Math.max(1, Math.min(20, Number(settings.behavior.nudgeStepPx) || validated.behavior.nudgeStepPx))
         };
     }
-    
+
     if (settings.accessibility) {
         validated.accessibility = { ...validated.accessibility, ...settings.accessibility };
     }
-    
+
     if (settings.appearance) {
         validated.appearance = {
             ...validated.appearance,
@@ -158,11 +158,11 @@ function validateAndClampSettings(settings) {
             panelPosition: ['left', 'right'].includes(settings.appearance.panelPosition) ? settings.appearance.panelPosition : validated.appearance.panelPosition
         };
     }
-    
+
     if (settings.privacy) {
         validated.privacy = { ...validated.privacy, ...settings.privacy };
     }
-    
+
     return validated;
 }
 
@@ -174,7 +174,7 @@ function validateAndClampSettings(settings) {
  */
 function deepMerge(target, source) {
     const result = { ...target };
-    
+
     for (const key in source) {
         if (source[key] && typeof source[key] === 'object' && !Array.isArray(source[key])) {
             result[key] = deepMerge(target[key] || {}, source[key]);
@@ -182,7 +182,7 @@ function deepMerge(target, source) {
             result[key] = source[key];
         }
     }
-    
+
     return result;
 }
 
@@ -194,7 +194,7 @@ function deepMerge(target, source) {
  */
 function migrateSettings(input, fromVersion) {
     let settings = { ...input };
-    
+
     switch (fromVersion) {
         case 0:
             // Migrate from v0 to v1
@@ -247,7 +247,7 @@ function migrateSettings(input, fromVersion) {
             settings = DEFAULT_SETTINGS;
             break;
     }
-    
+
     return validateAndClampSettings(settings);
 }
 
@@ -262,7 +262,7 @@ class SettingsStore {
         this.storage = null;
         this.init();
     }
-    
+
     /**
      * Initialize the settings store
      */
@@ -277,14 +277,14 @@ class SettingsStore {
             console.warn('Failed to load settings:', error);
             this.settings = { ...DEFAULT_SETTINGS };
         }
-        
+
         // Initialize storage abstraction
         this.storage = new StorageAdapter();
-        
+
         // Dispatch initial settings
         this.dispatchChange();
     }
-    
+
     /**
      * Load settings from storage
      * @returns {Promise<Settings|null>} Loaded settings or null
@@ -311,7 +311,7 @@ class SettingsStore {
             return null;
         }
     }
-    
+
     /**
      * Save settings to storage
      * @param {Settings} settings - Settings to save
@@ -334,7 +334,7 @@ class SettingsStore {
             console.warn('Storage write error:', error);
         }
     }
-    
+
     /**
      * Debounced save to storage
      * @param {Settings} settings - Settings to save
@@ -343,13 +343,13 @@ class SettingsStore {
         if (this.writeDebounceTimer) {
             clearTimeout(this.writeDebounceTimer);
         }
-        
+
         this.writeDebounceTimer = setTimeout(() => {
             this.saveToStorage(settings);
             this.writeDebounceTimer = null;
         }, 250);
     }
-    
+
     /**
      * Dispatch settings change event
      */
@@ -360,7 +360,7 @@ class SettingsStore {
                 detail: this.settings
             }));
         }
-        
+
         // Notify listeners
         this.listeners.forEach(callback => {
             try {
@@ -370,7 +370,7 @@ class SettingsStore {
             }
         });
     }
-    
+
     /**
      * Get current settings
      * @returns {Promise<Settings>} Current settings
@@ -378,7 +378,7 @@ class SettingsStore {
     async getSettings() {
         return { ...this.settings };
     }
-    
+
     /**
      * Update settings with deep merge
      * @param {Partial<Settings>} patch - Settings patch
@@ -387,14 +387,14 @@ class SettingsStore {
     async updateSettings(patch) {
         const merged = deepMerge(this.settings, patch);
         const validated = validateAndClampSettings(merged);
-        
+
         this.settings = validated;
         this.debouncedSave(validated);
         this.dispatchChange();
-        
+
         return { ...validated };
     }
-    
+
     /**
      * Subscribe to settings changes
      * @param {function(Settings): void} callback - Change callback
@@ -402,13 +402,13 @@ class SettingsStore {
      */
     onSettingsChange(callback) {
         this.listeners.add(callback);
-        
+
         // Return unsubscribe function
         return () => {
             this.listeners.delete(callback);
         };
     }
-    
+
     /**
      * Export settings as JSON string
      * @returns {Promise<string>} JSON string
@@ -416,7 +416,7 @@ class SettingsStore {
     async exportSettings() {
         return JSON.stringify(this.settings, null, 2);
     }
-    
+
     /**
      * Import settings from JSON string
      * @param {string} json - JSON string
@@ -427,11 +427,11 @@ class SettingsStore {
             const parsed = JSON.parse(json);
             const migrated = migrateSettings(parsed, parsed.version || 0);
             const validated = validateAndClampSettings(migrated);
-            
+
             this.settings = validated;
             this.debouncedSave(validated);
             this.dispatchChange();
-            
+
             return { ...validated };
         } catch (error) {
             throw new Error('Invalid settings JSON: ' + error.message);
@@ -446,7 +446,7 @@ class StorageAdapter {
     constructor() {
         this.isChromeStorage = typeof chrome !== 'undefined' && chrome.storage && chrome.storage.sync;
     }
-    
+
     /**
      * Get value from storage
      * @param {string} key - Storage key
@@ -464,7 +464,7 @@ class StorageAdapter {
             return stored ? JSON.parse(stored) : null;
         }
     }
-    
+
     /**
      * Set value in storage
      * @param {string} key - Storage key

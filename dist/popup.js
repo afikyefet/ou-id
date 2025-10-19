@@ -13,6 +13,178 @@ const $profiles = byId('profiles-list');
 // When picking a selector for a specific mapping, we store the target here:
 window.__ES_EXPECT_SELECTOR__ = null;
 
+// --- Utilities: escaping, messaging, tabs query, and modal helpers ---
+function escapeHTML(input) {
+    const s = String(input ?? '');
+    return s
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function sendMessageAsync(type, payload) {
+    return new Promise((resolve, reject) => {
+        try {
+            chrome.runtime.sendMessage({ type, ...(payload !== undefined ? { payload } : {}) }, (response) => {
+                if (chrome.runtime.lastError) {
+                    reject(new Error(chrome.runtime.lastError.message));
+                } else {
+                    resolve(response);
+                }
+            });
+        } catch (e) {
+            reject(e);
+        }
+    });
+}
+
+function tabsQueryAsync(query) {
+    return new Promise((resolve, reject) => {
+        try {
+            chrome.tabs.query(query, (tabs) => {
+                if (chrome.runtime.lastError) {
+                    reject(new Error(chrome.runtime.lastError.message));
+                } else {
+                    resolve(tabs);
+                }
+            });
+        } catch (e) {
+            reject(e);
+        }
+    });
+}
+
+// Basic modal system for replacing alert/prompt/confirm flows
+const $modalRoot = (() => document.getElementById('modal-root'))();
+
+function closeModal() {
+    if ($modalRoot) {
+        $modalRoot.innerHTML = '';
+        $modalRoot.style.display = 'none';
+    }
+}
+
+function buildModalShell(title) {
+    const overlay = document.createElement('div');
+    overlay.style.cssText = 'position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center;';
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
+    const modal = document.createElement('div');
+    modal.setAttribute('role', 'dialog');
+    modal.setAttribute('aria-modal', 'true');
+    modal.style.cssText = 'background: var(--bg); border: 1px solid #1a2438; border-radius: 8px; width: 100%; max-width: 420px; max-height: 85vh; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.4)';
+    modal.innerHTML = `
+        <div style="display:flex; align-items:center; justify-content:space-between; padding: 12px 14px; border-bottom: 1px solid #1a2438;">
+            <strong>${escapeHTML(title || 'FillFlux')}</strong>
+            <button id="ff-modal-close" class="ghost" style="font-size:16px;">×</button>
+        </div>
+        <div id="ff-modal-body" style="padding: 12px 14px;"></div>
+        <div id="ff-modal-actions" style="display:flex; gap:8px; justify-content:flex-end; padding: 10px 14px; border-top: 1px solid #1a2438;"></div>
+    `;
+    overlay.appendChild(modal);
+    modal.querySelector('#ff-modal-close').addEventListener('click', closeModal);
+    return { overlay, modal };
+}
+
+async function alertModal(message, title = 'FillFlux') {
+    return new Promise((resolve) => {
+        if (!$modalRoot) return resolve();
+        $modalRoot.style.display = 'flex';
+        const { overlay, modal } = buildModalShell(title);
+        modal.querySelector('#ff-modal-body').innerHTML = `<div style="white-space: pre-wrap;">${escapeHTML(message)}</div>`;
+        const actions = modal.querySelector('#ff-modal-actions');
+        const ok = document.createElement('button');
+        ok.textContent = 'OK';
+        ok.addEventListener('click', () => { closeModal(); resolve(); });
+        actions.appendChild(ok);
+        $modalRoot.appendChild(overlay);
+        modal.querySelector('#ff-modal-close').focus();
+    });
+}
+
+async function confirmModal(message, title = 'FillFlux') {
+    return new Promise((resolve) => {
+        if (!$modalRoot) return resolve(false);
+        $modalRoot.style.display = 'flex';
+        const { overlay, modal } = buildModalShell(title);
+        modal.querySelector('#ff-modal-body').innerHTML = `<div style="white-space: pre-wrap;">${escapeHTML(message)}</div>`;
+        const actions = modal.querySelector('#ff-modal-actions');
+        const cancel = document.createElement('button');
+        cancel.className = 'ghost';
+        cancel.textContent = 'Cancel';
+        cancel.addEventListener('click', () => { closeModal(); resolve(false); });
+        const ok = document.createElement('button');
+        ok.textContent = 'OK';
+        ok.addEventListener('click', () => { closeModal(); resolve(true); });
+        actions.appendChild(cancel);
+        actions.appendChild(ok);
+        $modalRoot.appendChild(overlay);
+        ok.focus();
+    });
+}
+
+async function inputModal({ title = 'FillFlux', label = 'Enter value', initialValue = '' }) {
+    return new Promise((resolve) => {
+        if (!$modalRoot) return resolve(initialValue);
+        $modalRoot.style.display = 'flex';
+        const { overlay, modal } = buildModalShell(title);
+        const body = modal.querySelector('#ff-modal-body');
+        const id = 'ff-input-' + Math.random().toString(36).slice(2);
+        body.innerHTML = `
+            <label for="${id}" style="display:block; margin-bottom:6px;">${escapeHTML(label)}</label>
+            <input id="${id}" value="${escapeHTML(initialValue)}" style="width:100%; padding:6px; background:#0e1628; border:1px solid #1a2438; color:var(--fg); border-radius:4px;" />
+        `;
+        const input = body.querySelector('input');
+        const actions = modal.querySelector('#ff-modal-actions');
+        const cancel = document.createElement('button');
+        cancel.className = 'ghost';
+        cancel.textContent = 'Cancel';
+        cancel.addEventListener('click', () => { const v = null; closeModal(); resolve(v); });
+        const ok = document.createElement('button');
+        ok.textContent = 'OK';
+        ok.addEventListener('click', () => { const v = input.value; closeModal(); resolve(v); });
+        actions.appendChild(cancel);
+        actions.appendChild(ok);
+        $modalRoot.appendChild(overlay);
+        input.focus();
+        input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { ok.click(); } });
+    });
+}
+
+async function selectModal({ title = 'FillFlux', label = 'Choose', options = [] }) {
+    return new Promise((resolve) => {
+        if (!$modalRoot) return resolve(-1);
+        $modalRoot.style.display = 'flex';
+        const { overlay, modal } = buildModalShell(title);
+        const body = modal.querySelector('#ff-modal-body');
+        const id = 'ff-select-' + Math.random().toString(36).slice(2);
+        body.innerHTML = `
+            <label for="${id}" style="display:block; margin-bottom:6px;">${escapeHTML(label)}</label>
+            <select id="${id}" style="width:100%; padding:6px; background:#0e1628; border:1px solid #1a2438; color:var(--fg); border-radius:4px;"></select>
+        `;
+        const select = body.querySelector('select');
+        options.forEach((opt, i) => {
+            const o = document.createElement('option');
+            o.value = String(i);
+            o.textContent = opt;
+            select.appendChild(o);
+        });
+        const actions = modal.querySelector('#ff-modal-actions');
+        const cancel = document.createElement('button');
+        cancel.className = 'ghost';
+        cancel.textContent = 'Cancel';
+        cancel.addEventListener('click', () => { closeModal(); resolve(-1); });
+        const ok = document.createElement('button');
+        ok.textContent = 'OK';
+        ok.addEventListener('click', () => { const idx = parseInt(select.value); closeModal(); resolve(idx); });
+        actions.appendChild(cancel);
+        actions.appendChild(ok);
+        $modalRoot.appendChild(overlay);
+        select.focus();
+    });
+}
+
 // Overlay toggle state
 let overlayEnabled = true;
 
@@ -53,6 +225,7 @@ async function set(partial) {
 async function createVariable(name, value, sourceSelector = null, sourceSiteId = null) {
     const id = crypto.randomUUID();
     const all = await getAll();
+    all[STORAGE_KEYS.VARS] = all[STORAGE_KEYS.VARS] || {};
     const newVar = {
         id,
         name,
@@ -70,6 +243,7 @@ async function createVariable(name, value, sourceSelector = null, sourceSiteId =
 async function createProfile(name, sitePattern) {
     const id = crypto.randomUUID();
     const all = await getAll();
+    all[STORAGE_KEYS.PROFILES] = all[STORAGE_KEYS.PROFILES] || {};
     const newProfile = {
         id,
         name,
@@ -99,7 +273,7 @@ function showNotification(message, type = 'info', duration = 3000) {
         word-wrap: break-word;
     `;
 
-    notification.textContent = message;
+    notification.textContent = String(message ?? '');
     notificationArea.appendChild(notification);
 
     // Add slide-in animation
@@ -213,7 +387,7 @@ function renderTimerStatus(variable) {
     if (variable.sourceSelector) {
         const shortSelector = variable.sourceSelector.length > 30 ?
             variable.sourceSelector.substring(0, 30) + '...' : variable.sourceSelector;
-        status += `<br><span style="color: var(--muted); font-size: 10px;">from: ${shortSelector}</span>`;
+        status += `<br><span style="color: var(--muted); font-size: 10px;">from: ${escapeHTML(shortSelector)}</span>`;
     }
 
     return status;
@@ -289,8 +463,8 @@ async function renderVars() {
         li.className = 'card';
         li.innerHTML = `
       <div class="row">
-        <input value="${v.name}" data-role="name" />
-        <input value="${v.value ?? ''}" data-role="value" />
+        <input value="${escapeHTML(v.name)}" data-role="name" />
+        <input value="${escapeHTML(v.value ?? '')}" data-role="value" />
         <div style="display:flex; gap:4px; justify-content:flex-end">
           <button data-role="save">Save</button>
           <button class="ghost" data-role="auto">Auto</button>
@@ -317,8 +491,8 @@ async function renderVars() {
         li.querySelector('[data-role="auto"]').onclick = async () => {
             if (v.autoCopyUntil && v.autoCopyUntil > Date.now()) {
                 // Already active, ask if they want to stop or extend
-                const choice = prompt(`Auto-copy is active until ${new Date(v.autoCopyUntil).toLocaleTimeString()}.\n\nEnter new minutes to extend, or 0 to stop:`, '0');
-                const minutes = +choice;
+                const choice = await inputModal({ title: 'FillFlux', label: `Auto-copy active until ${new Date(v.autoCopyUntil).toLocaleTimeString()}\nEnter minutes to extend (0 to stop):`, initialValue: '0' });
+                const minutes = +(choice || '0');
 
                 if (minutes === 0) {
                     // Stop auto-copy
@@ -340,7 +514,8 @@ async function renderVars() {
                 }
             } else {
                 // Not active, start new timer
-                const minutes = +prompt('Auto-copy for how many minutes?', '10') || 10;
+                const input = await inputModal({ title: 'FillFlux', label: 'Auto-copy for how many minutes?', initialValue: '10' });
+                const minutes = +(input || '10') || 10;
                 if (minutes > 0) {
                     const until = Date.now() + minutes * 60 * 1000;
                     const all = await getAll();
@@ -450,7 +625,7 @@ async function initializeAutoRefresh() {
 }
 
 async function renderSites() {
-    const { url } = await new Promise(r => chrome.runtime.sendMessage({ type: 'GET_ACTIVE_TAB_URL' }, r));
+    const { url } = await sendMessageAsync('GET_ACTIVE_TAB_URL');
     byId('active-url').textContent = url || '';
 
     const { [KEYS.SITES]: sites = {} } = await getAll();
@@ -461,8 +636,8 @@ async function renderSites() {
         const els = s.elements?.length || 0;
         li.innerHTML = `
       <div class="row">
-        <input value="${s.title}" data-role="title" />
-        <input value="${s.urlPattern}" data-role="pattern" />
+        <input value="${escapeHTML(s.title)}" data-role="title" />
+        <input value="${escapeHTML(s.urlPattern)}" data-role="pattern" />
         <div style="display:flex; gap:4px; justify-content:flex-end">
           <button data-role="save">Save</button>
           <button class="danger" data-role="del">Del</button>
@@ -490,7 +665,7 @@ async function renderSites() {
 
 async function renderProfiles() {
     // Show current page info
-    const { url } = await new Promise(r => chrome.runtime.sendMessage({ type: 'GET_ACTIVE_TAB_URL' }, r));
+    const { url } = await sendMessageAsync('GET_ACTIVE_TAB_URL');
     const currentDomain = url ? new URL(url).hostname : 'unknown';
     byId('current-site-info').textContent = `Current page: ${currentDomain}`;
 
@@ -520,7 +695,7 @@ async function renderProfiles() {
         li.className = 'card';
         li.innerHTML = `
             <div class="row">
-                <strong>${p.name}</strong>
+                <strong>${escapeHTML(p.name)}</strong>
                 <div style="display:flex; gap:4px; justify-content:flex-end">
                     <button data-role="edit">Edit</button>
                     <button class="danger" data-role="del">Delete</button>
@@ -539,9 +714,10 @@ async function renderProfiles() {
             inputDiv.style.padding = '4px 0';
             inputDiv.style.borderBottom = '1px solid #1a2438';
 
-            const varName = input.varName || 'No variable selected';
-            const selectorPreview = input.selector.length > 40 ?
+            const varName = escapeHTML(input.varName || 'No variable selected');
+            const selectorPreviewRaw = input.selector.length > 40 ?
                 input.selector.substring(0, 40) + '...' : input.selector;
+            const selectorPreview = escapeHTML(selectorPreviewRaw);
 
             inputDiv.innerHTML = `
                 <div style="flex: 1;">
@@ -624,11 +800,20 @@ async function editProfile(profileId) {
             const inputDiv = document.createElement('div');
             inputDiv.style.cssText = 'border: 1px solid #1a2438; border-radius: 4px; padding: 12px; margin-bottom: 8px;';
 
+            const optionsHtml = allVars.map(v => {
+                const nameEsc = escapeHTML(v.name);
+                const raw = String(v.value || '');
+                const previewRaw = raw.length > 30 ? raw.substring(0, 30) + '...' : raw;
+                const previewEsc = escapeHTML(previewRaw);
+                const selected = input.varName === v.name ? 'selected' : '';
+                return `<option value="${nameEsc}" ${selected}>${nameEsc}: "${previewEsc}"</option>`;
+            }).join('');
+
             inputDiv.innerHTML = `
                 <div style="margin-bottom: 8px;">
                     <label>Input Selector:</label>
                     <div style="display: flex; gap: 4px; margin-top: 4px;">
-                        <input class="selector-input" data-idx="${idx}" value="${input.selector || ''}" 
+                        <input class="selector-input" data-idx="${idx}" value="${escapeHTML(input.selector || '')}" 
                                style="flex: 1; padding: 6px; background: #0e1628; border: 1px solid #1a2438; color: var(--fg); border-radius: 4px;" 
                                placeholder="Click Pick to select" readonly />
                         <button class="pick-input" data-idx="${idx}" 
@@ -641,7 +826,7 @@ async function editProfile(profileId) {
                     <select class="var-select" data-idx="${idx}" 
                             style="width: 100%; margin-top: 4px; padding: 6px; background: #0e1628; border: 1px solid #1a2438; color: var(--fg); border-radius: 4px;">
                         <option value="">— Choose Variable —</option>
-                        ${allVars.map(v => `<option value="${v.name}" ${input.varName === v.name ? 'selected' : ''}>${v.name}: "${(v.value || '').substring(0, 30)}${v.value && v.value.length > 30 ? '...' : ''}"</option>`).join('')}
+                        ${optionsHtml}
                     </select>
                 </div>
                 
@@ -757,7 +942,7 @@ byId('btn-new-profile-here').onclick = async () => {
 
     const domain = new URL(url).hostname;
     const suggestedName = generateSmartProfileName(url);
-    const name = prompt(`Profile name for ${domain}:`, suggestedName);
+    const name = await inputModal({ title: 'FillFlux', label: `Profile name for ${domain}:`, initialValue: suggestedName });
     if (!name) return;
 
     try {
@@ -810,23 +995,15 @@ byId('btn-pick').onclick = () => chrome.runtime.sendMessage({ type: 'INJECT_PICK
 // Manual content script refresh
 byId('btn-refresh-content').onclick = async () => {
     try {
-        const res = await new Promise((resolve, reject) => {
-            chrome.runtime.sendMessage({ type: 'REFRESH_CONTENT_SCRIPT' }, (response) => {
-                if (chrome.runtime.lastError) {
-                    reject(new Error(chrome.runtime.lastError.message));
-                } else {
-                    resolve(response);
-                }
-            });
-        });
+        const res = await sendMessageAsync('REFRESH_CONTENT_SCRIPT');
 
         if (res?.ok) {
-            alert('Content scripts refreshed successfully!');
+            await alertModal('Content scripts refreshed successfully!');
         } else {
-            alert(`Failed to refresh: ${res?.error || 'Unknown error'}`);
+            await alertModal(`Failed to refresh: ${res?.error || 'Unknown error'}`);
         }
     } catch (error) {
-        alert(`Refresh failed: ${error.message}`);
+        await alertModal(`Refresh failed: ${error.message}`);
     }
 };
 
@@ -835,18 +1012,7 @@ byId('btn-toggle-overlay').onclick = async () => {
     overlayEnabled = !overlayEnabled;
 
     try {
-        const res = await new Promise((resolve, reject) => {
-            chrome.runtime.sendMessage({
-                type: 'TOGGLE_OVERLAY',
-                payload: { enabled: overlayEnabled }
-            }, (response) => {
-                if (chrome.runtime.lastError) {
-                    reject(new Error(chrome.runtime.lastError.message));
-                } else {
-                    resolve(response);
-                }
-            });
-        });
+        const res = await sendMessageAsync('TOGGLE_OVERLAY', { enabled: overlayEnabled });
 
         if (res?.ok) {
             byId('btn-toggle-overlay').textContent = overlayEnabled ? '📍 Page Controls ON' : '📍 Page Controls OFF';
@@ -854,7 +1020,7 @@ byId('btn-toggle-overlay').onclick = async () => {
             showNotification(overlayEnabled ? 'Page controls enabled' : 'Page controls disabled');
         }
     } catch (error) {
-        alert(`Toggle failed: ${error.message}`);
+        await alertModal(`Toggle failed: ${error.message}`);
     }
 };
 
@@ -896,7 +1062,7 @@ if (!window.__ES_POPUP_BOUND__) {
         const pattern = toPatternFromUrl(url);
         const title = new URL(url).hostname;
         const all = await getAll();
-        const sites = all[STORAGE_KEYS.SITES];
+        const sites = all[STORAGE_KEYS.SITES] || (all[STORAGE_KEYS.SITES] = {});
         let site = Object.values(sites).find(s => s.urlPattern === pattern);
         if (!site) {
             site = { id: crypto.randomUUID(), title, urlPattern: pattern, elements: [] };
@@ -912,13 +1078,12 @@ if (!window.__ES_POPUP_BOUND__) {
         const variable = await createVariable(suggestedName, value, selector, site.id);
 
         // Set recent copy for paste offers
-        chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
-            if (!tab?.id) return;
-            chrome.tabs.sendMessage(tab.id, {
-                type: 'FF_SET_RECENT_COPY',
-                payload: { varId: variable.id, varName: variable.name, value: value, ts: Date.now() }
-            }).catch(() => { });
-        });
+        try {
+            const [tab] = await tabsQueryAsync({ active: true, currentWindow: true });
+            if (tab?.id) {
+                await sendMessageAsync('SET_RECENT_COPY', { varId: variable.id, varName: variable.name, value, ts: Date.now() });
+            }
+        } catch (_) { }
 
         await renderSites();
         await renderVars();
@@ -934,7 +1099,7 @@ byId('btn-copy-active').onclick = async () => {
     const all = await getAll();
     const vars = Object.values(all[KEYS.VARS]);
     if (!vars.length) return alert('Create a variable first.');
-    const varIdx = prompt(`Which variable index to update?\n${vars.map((v, i) => `${i}: ${v.name}`).join('\n')}`, '0');
+    const varIdx = await inputModal({ title: 'FillFlux', label: 'Which variable index to update?', initialValue: '0' });
     const choice = vars[+varIdx || 0];
     if (!choice) return;
 
@@ -945,41 +1110,32 @@ byId('btn-copy-active').onclick = async () => {
         .filter(s => matchesPattern(s.urlPattern, activeUrl || ''))
         .flatMap(s => s.elements.map(e => ({ site: s, selector: e.selector })));
     if (!allEls.length) return alert('Pick an element first.');
-    const elIdx = prompt(`Which element selector index?\n${allEls.map((e, i) => `${i}: ${e.selector} (${e.site.title})`).join('\n')}`, '0');
+    const elIdx = await inputModal({ title: 'FillFlux', label: 'Which element selector index?', initialValue: '0' });
     const elChoice = allEls[+elIdx || 0];
     if (!elChoice) return;
 
     try {
-        const res = await new Promise((resolve, reject) => {
-            chrome.runtime.sendMessage({ type: 'GET_SNAPSHOT', payload: { selector: elChoice.selector } }, (response) => {
-                if (chrome.runtime.lastError) {
-                    reject(new Error(chrome.runtime.lastError.message));
-                } else {
-                    resolve(response);
-                }
-            });
-        });
+        const res = await sendMessageAsync('GET_SNAPSHOT', { selector: elChoice.selector });
 
         if (!res?.ok) {
-            return alert(`Could not resolve element on this page.\nSelector: ${elChoice.selector}\nPage may need to refresh or element may not exist.`);
+            return alertModal(`Could not resolve element on this page.\nSelector: ${elChoice.selector}\nPage may need to refresh or element may not exist.`);
         }
 
         const varsObj = all[KEYS.VARS];
         varsObj[choice.id] = { ...choice, value: res.value };
         await set({ [KEYS.VARS]: varsObj });
         renderVars();
-        alert(`Successfully copied value: "${res.value}"`);
+        await alertModal(`Successfully copied value: "${String(res.value)}"`);
 
         // Set recent copy for paste offers
-        chrome.tabs.query({ active: true, currentWindow: true }, ([tab]) => {
-            if (!tab?.id) return;
-            chrome.tabs.sendMessage(tab.id, {
-                type: 'FF_SET_RECENT_COPY',
-                payload: { varId: choice.id, varName: choice.name, value: res.value, ts: Date.now() }
-            }).catch(() => { });
-        });
+        try {
+            const [tab] = await tabsQueryAsync({ active: true, currentWindow: true });
+            if (tab?.id) {
+                await sendMessageAsync('SET_RECENT_COPY', { varId: choice.id, varName: choice.name, value: res.value, ts: Date.now() });
+            }
+        } catch (_) { }
     } catch (error) {
-        alert(`Error copying from page: ${error.message}\n\nTry refreshing the page and trying again.`);
+        await alertModal(`Error copying from page: ${error.message}\n\nTry refreshing the page and trying again.`);
     }
 };
 
@@ -1001,7 +1157,7 @@ byId('btn-fill-form').onclick = async () => {
     if (matchingProfiles.length === 1) {
         profile = matchingProfiles[0];
     } else {
-        const idx = +prompt(`Multiple profiles found. Choose one:\n${matchingProfiles.map((p, i) => `${i}: ${p.name}`).join('\n')}`, '0') || 0;
+        const idx = (await inputModal({ title: 'FillFlux', label: 'Multiple profiles found. Choose index', initialValue: '0' })) || 0;
         profile = matchingProfiles[idx];
     }
 
@@ -1023,15 +1179,7 @@ byId('btn-fill-form').onclick = async () => {
     }
 
     try {
-        const res = await new Promise((resolve, reject) => {
-            chrome.runtime.sendMessage({ type: 'PASTE_PROFILE', payload: { mappings } }, (response) => {
-                if (chrome.runtime.lastError) {
-                    reject(new Error(chrome.runtime.lastError.message));
-                } else {
-                    resolve(response);
-                }
-            });
-        });
+        const res = await sendMessageAsync('PASTE_PROFILE', { mappings });
 
         if (!res?.ok) {
             const failedResults = (res.results || []).filter(r => !r.ok);
@@ -1045,40 +1193,30 @@ byId('btn-fill-form').onclick = async () => {
                 errorMsg += `Failed to set values:\n${failedResults.map(f => `• ${f.selector}`).join('\n')}`;
             }
             errorMsg += '\nTry using "Refresh Scripts" and try again.';
-            return alert(errorMsg);
+            return alertModal(errorMsg);
         }
 
         const successful = (res.results || []).filter(r => r.ok).length;
         const failed = (res.results || []).filter(r => !r.ok);
 
         if (failed.length === 0) {
-            alert(`✅ Successfully filled ${successful} fields with "${profile.name}" profile!`);
+            await alertModal(`Successfully filled ${successful} fields with "${profile.name}" profile!`);
         } else {
-            alert(`⚠️ Filled ${successful} fields, but ${failed.length} failed:\n${failed.map(f => `• ${f.selector} ${f.found ? '(set failed)' : '(not found)'}`).join('\n')}`);
+            await alertModal(`Filled ${successful} fields, but ${failed.length} failed:\n${failed.map(f => `• ${f.selector} ${f.found ? '(set failed)' : '(not found)'}`).join('\n')}`);
         }
     } catch (error) {
-        alert(`Fill error: ${error.message}\n\nTry using "Refresh Scripts" button and try again.`);
+        await alertModal(`Fill error: ${error.message}\n\nTry using "Refresh Scripts" button and try again.`);
     }
 };
 
 // Toggle floating vars window
 byId('btn-floating-vars').onclick = async () => {
     try {
-        const res = await new Promise((resolve, reject) => {
-            chrome.runtime.sendMessage({
-                type: 'TOGGLE_FLOATING_VARS'
-            }, (response) => {
-                if (chrome.runtime.lastError) {
-                    reject(new Error(chrome.runtime.lastError.message));
-                } else {
-                    resolve(response);
-                }
-            });
-        });
+        const res = await sendMessageAsync('TOGGLE_FLOATING_VARS');
 
         showNotification(res?.visible ? 'Floating panel ON' : 'Floating panel OFF');
     } catch (error) {
-        alert(`Failed to toggle floating vars: ${error.message}`);
+        await alertModal(`Failed to toggle floating vars: ${error.message}`);
     }
 };
 

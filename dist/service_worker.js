@@ -1,4 +1,4 @@
-// Element Snapper – background / service worker
+// FillFlux – background / service worker
 // Handles alarms (auto‑copy expiry), central storage utils, and scripting injections.
 
 const STORAGE_KEYS = {

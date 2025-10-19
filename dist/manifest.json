@@ -15,7 +15,8 @@
         "tabs"
     ],
     "host_permissions": [
-        "<all_urls>"
+        "http://*/*",
+        "https://*/*"
     ],
     "background": {
         "service_worker": "service_worker.js"
@@ -23,7 +24,8 @@
     "content_scripts": [
         {
             "matches": [
-                "<all_urls>"
+                "http://*/*",
+                "https://*/*"
             ],
             "js": [
                 "url-utils.js",
@@ -33,16 +35,6 @@
             ],
             "run_at": "document_idle",
             "all_frames": true
-        }
-    ],
-    "web_accessible_resources": [
-        {
-            "resources": [
-                "page-overlay.js"
-            ],
-            "matches": [
-                "<all_urls>"
-            ]
         }
     ],
     "icons": {

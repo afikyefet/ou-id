@@ -4,7 +4,7 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Element Snapper</title>
+    <title>FillFlux</title>
     <link rel="stylesheet" href="popup.css" />
     <link rel="stylesheet" href="ui-ios.css" />
 </head>
@@ -12,8 +12,9 @@
 <body>
     <div class="ios-shell">
         <header>
-            <h1>Element Snapper</h1>
-            <div id="notification-area" style="position: fixed; top: 10px; right: 10px; z-index: 10000;"></div>
+            <h1>FillFlux</h1>
+            <div id="notification-area" role="status" aria-live="polite"
+                style="position: fixed; top: 10px; right: 10px; z-index: 10000;"></div>
         </header>
 
         <nav class="tabs segmented">
@@ -56,6 +57,10 @@
                     style="padding: 8px; background: #0e1628; margin: 8px 0; border-radius: 4px;"></div>
             </section>
         </main>
+    </div>
+
+    <div id="modal-root"
+        style="position: fixed; inset: 0; display: none; align-items: center; justify-content: center; z-index: 10001;">
     </div>
 
     <script src="popup.js"></script>
