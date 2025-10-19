@@ -45,4 +45,8 @@ Notes
 - No new libraries or build steps added; dist-only edits.
 - If a site uses strict CSP, overlay still injects inline <style> as before.
 
+Permissions rationale
+- Host and matches limited to http/https to avoid special schemes and reduce surface area. Keep `tabs` to reliably get active tab URL and manage floating overlay behavior.
+- `web_accessible_resources` for `page-overlay.js` removed because it is injected as a content script; re-add only if you need to fetch it from the page context.
+
 

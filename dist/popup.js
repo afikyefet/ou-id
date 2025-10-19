@@ -59,6 +59,28 @@ function tabsQueryAsync(query) {
 // Basic modal system for replacing alert/prompt/confirm flows
 const $modalRoot = (() => document.getElementById('modal-root'))();
 
+// Minimal i18n scaffold (English only for now)
+const I18N_DICTIONARY = {
+    'ok': 'OK',
+    'cancel': 'Cancel',
+    'choose_profile': 'Choose a profile',
+    'no_profiles_for_site': 'No profiles found for this page.\n\nCreate a profile first using "New Profile for This Page".',
+    'no_inputs_in_profile': 'No inputs configured in this profile.\n\nClick Edit to add some inputs.',
+    'no_valid_mappings': 'No valid input mappings found.\n\nMake sure each input has both a selector and a variable selected.',
+    'create_variable_first': 'Create a variable first.',
+    'pick_element_first': 'Pick an element first.'
+};
+
+function t(key, vars) {
+    let s = I18N_DICTIONARY[key] || key;
+    if (vars && typeof vars === 'object') {
+        for (const k of Object.keys(vars)) {
+            s = s.replace(new RegExp(`{${k}}`, 'g'), String(vars[k]));
+        }
+    }
+    return s;
+}
+
 function closeModal() {
     if ($modalRoot) {
         $modalRoot.innerHTML = '';
@@ -84,6 +106,30 @@ function buildModalShell(title) {
     `;
     overlay.appendChild(modal);
     modal.querySelector('#ff-modal-close').addEventListener('click', closeModal);
+    // ESC to close
+    overlay.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            e.stopPropagation();
+            closeModal();
+        }
+    });
+    // focus trap
+    const focusableSelectors = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+    const handleFocusTrap = (e) => {
+        if (e.key !== 'Tab') return;
+        const focusables = modal.querySelectorAll(focusableSelectors);
+        if (!focusables.length) return;
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+            e.preventDefault();
+            last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+            e.preventDefault();
+            first.focus();
+        }
+    };
+    overlay.addEventListener('keydown', handleFocusTrap);
     return { overlay, modal };
 }
 
@@ -483,6 +529,8 @@ async function renderVars() {
             renderVars();
         };
         li.querySelector('[data-role="del"]').onclick = async () => {
+            const ok = await confirmModal(`Delete variable "${escapeHTML(v.name)}"?`);
+            if (!ok) return;
             const all = await getAll();
             delete all[KEYS.VARS][v.id];
             await set({ [KEYS.VARS]: all[KEYS.VARS] });
@@ -654,6 +702,8 @@ async function renderSites() {
             renderSites();
         };
         li.querySelector('[data-role="del"]').onclick = async () => {
+            const ok = await confirmModal(`Delete site "${escapeHTML(s.title)}"?`);
+            if (!ok) return;
             const all = await getAll();
             delete all[KEYS.SITES][s.id];
             await set({ [KEYS.SITES]: all[KEYS.SITES] });
@@ -735,12 +785,12 @@ async function renderProfiles() {
 
         // Delete button  
         li.querySelector('[data-role="del"]').onclick = async () => {
-            if (confirm(`Delete profile "${p.name}"?`)) {
-                const all = await getAll();
-                delete all[KEYS.PROFILES][p.id];
-                await set({ [KEYS.PROFILES]: all[KEYS.PROFILES] });
-                renderProfiles();
-            }
+            const ok = await confirmModal(`Delete profile "${escapeHTML(p.name)}"?`);
+            if (!ok) return;
+            const all = await getAll();
+            delete all[KEYS.PROFILES][p.id];
+            await set({ [KEYS.PROFILES]: all[KEYS.PROFILES] });
+            renderProfiles();
         };
 
         $profiles.appendChild(li);
@@ -1098,7 +1148,7 @@ if (!window.__ES_POPUP_BOUND__) {
 byId('btn-copy-active').onclick = async () => {
     const all = await getAll();
     const vars = Object.values(all[KEYS.VARS]);
-    if (!vars.length) return alert('Create a variable first.');
+    if (!vars.length) { await alertModal('Create a variable first.'); return; }
     const varIdx = await inputModal({ title: 'FillFlux', label: 'Which variable index to update?', initialValue: '0' });
     const choice = vars[+varIdx || 0];
     if (!choice) return;
@@ -1109,7 +1159,7 @@ byId('btn-copy-active').onclick = async () => {
     const allEls = sites
         .filter(s => matchesPattern(s.urlPattern, activeUrl || ''))
         .flatMap(s => s.elements.map(e => ({ site: s, selector: e.selector })));
-    if (!allEls.length) return alert('Pick an element first.');
+    if (!allEls.length) { await alertModal('Pick an element first.'); return; }
     const elIdx = await inputModal({ title: 'FillFlux', label: 'Which element selector index?', initialValue: '0' });
     const elChoice = allEls[+elIdx || 0];
     if (!elChoice) return;
@@ -1149,21 +1199,22 @@ byId('btn-fill-form').onclick = async () => {
         p.sitePattern && matchesPattern(p.sitePattern, url || '')
     );
 
-    if (matchingProfiles.length === 0) {
-        return alert('No profiles found for this page.\n\nCreate a profile first using "New Profile for This Page".');
-    }
+    if (matchingProfiles.length === 0) { return alertModal('No profiles found for this page.\n\nCreate a profile first using "New Profile for This Page".'); }
 
     let profile;
     if (matchingProfiles.length === 1) {
         profile = matchingProfiles[0];
     } else {
-        const idx = (await inputModal({ title: 'FillFlux', label: 'Multiple profiles found. Choose index', initialValue: '0' })) || 0;
+        const idx = await selectModal({
+            title: 'FillFlux',
+            label: t('choose_profile'),
+            options: matchingProfiles.map((p, i) => `${i}: ${p.name}`)
+        });
+        if (idx < 0 || !matchingProfiles[idx]) return;
         profile = matchingProfiles[idx];
     }
 
-    if (!profile || !profile.inputs || profile.inputs.length === 0) {
-        return alert('No inputs configured in this profile.\n\nClick Edit to add some inputs.');
-    }
+    if (!profile || !profile.inputs || profile.inputs.length === 0) { return alertModal('No inputs configured in this profile.\n\nClick Edit to add some inputs.'); }
 
     // Build mappings from profile inputs
     const varsByName = Object.fromEntries(Object.values(all[KEYS.VARS]).map(v => [v.name, v.value]));
@@ -1174,9 +1225,7 @@ byId('btn-fill-form').onclick = async () => {
             return { selector: input.selector, value };
         });
 
-    if (mappings.length === 0) {
-        return alert('No valid input mappings found.\n\nMake sure each input has both a selector and a variable selected.');
-    }
+    if (mappings.length === 0) { return alertModal('No valid input mappings found.\n\nMake sure each input has both a selector and a variable selected.'); }
 
     try {
         const res = await sendMessageAsync('PASTE_PROFILE', { mappings });

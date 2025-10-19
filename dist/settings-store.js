@@ -496,6 +496,8 @@ if (typeof window !== 'undefined') {
         exportSettings: () => settingsStore.exportSettings(),
         importSettings: (json) => settingsStore.importSettings(json)
     };
+    // Backward alias in case older code referenced the prior name
+    window.FillFluxSettings = window.FluxFillSettings;
 }
 
 // Export for module systems
