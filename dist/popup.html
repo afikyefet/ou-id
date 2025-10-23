@@ -11,120 +11,98 @@
 </head>
 
 <body>
-    <div class="compact-container">
-        <!-- Compact Header (24px) -->
-        <div class="compact-header">
-            <button class="icon-btn" id="menu-btn" data-tooltip="Menu">
-                <span class="material-symbols-outlined">menu</span>
+    <div class="main-container">
+        <!-- Header (40px) -->
+        <div class="main-header">
+            <div class="header-left">
+                <span class="app-title">FillFlux</span>
+                <span id="current-site-name" class="site-indicator"></span>
+            </div>
+            <div class="header-actions">
+                <button class="icon-btn" id="btn-pick" data-tooltip="Pick Element">
+                    <span class="material-symbols-outlined">colorize</span>
+                </button>
+                <button class="icon-btn" id="btn-refresh-content" data-tooltip="Refresh Scripts">
+                    <span class="material-symbols-outlined">refresh</span>
+                </button>
+                <button class="icon-btn" id="btn-toggle-overlay" data-tooltip="Page Controls">
+                    <span class="material-symbols-outlined">tune</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- Tab Navigation (44px) -->
+        <div class="tab-navigation">
+            <button class="tab-btn active" data-tab="variables">
+                <span class="material-symbols-outlined">data_object</span>
+                Variables
             </button>
-            <span class="app-title">FillFlux</span>
-            <button class="icon-btn" id="settings-btn" data-tooltip="Settings">
-                <span class="material-symbols-outlined">settings</span>
+            <button class="tab-btn" data-tab="profiles">
+                <span class="material-symbols-outlined">person</span>
+                Profiles
+            </button>
+            <button class="tab-btn" data-tab="sites">
+                <span class="material-symbols-outlined">language</span>
+                Sites
             </button>
         </div>
 
-        <!-- Quick Actions Toolbar (32px) -->
-        <div class="compact-toolbar">
-            <button class="icon-btn" id="btn-pick" data-tooltip="Pick Element">
-                <span class="material-symbols-outlined">colorize</span>
-            </button>
-            <button class="icon-btn" id="btn-copy-active" data-tooltip="Copy from Page">
+        <!-- Content Area (280px) -->
+        <div class="content-area">
+            <!-- Variables Tab -->
+            <div id="tab-variables" class="tab-content active">
+                <div class="section-header">
+                    <h3>Variables</h3>
+                    <span id="active-vars-count" class="count-badge">0</span>
+                </div>
+                <div class="add-variable-form">
+                    <input id="new-var-name" placeholder="Variable name" />
+                    <input id="new-var-value" placeholder="Value (optional)" />
+                    <button id="add-var-btn" class="primary-btn">Add</button>
+                </div>
+                <ul id="vars-list" class="items-list"></ul>
+            </div>
+
+            <!-- Profiles Tab -->
+            <div id="tab-profiles" class="tab-content">
+                <div class="section-header">
+                    <h3>Profiles</h3>
+                    <button id="btn-new-profile" class="icon-btn" data-tooltip="New Profile">
+                        <span class="material-symbols-outlined">add</span>
+                    </button>
+                </div>
+                <div id="current-site-info" class="site-info"></div>
+                <ul id="profiles-list" class="items-list"></ul>
+            </div>
+
+            <!-- Sites Tab -->
+            <div id="tab-sites" class="tab-content">
+                <div class="section-header">
+                    <h3>Sites</h3>
+                </div>
+                <div id="active-url" class="url-info"></div>
+                <ul id="sites-list" class="items-list"></ul>
+            </div>
+        </div>
+
+        <!-- Action Bar (36px) -->
+        <div class="action-bar">
+            <button id="btn-copy-active" class="action-btn" data-tooltip="Copy from Page">
                 <span class="material-symbols-outlined">content_copy</span>
+                Copy
             </button>
-            <button class="icon-btn" id="btn-refresh-content" data-tooltip="Refresh Scripts">
-                <span class="material-symbols-outlined">refresh</span>
-            </button>
-            <button class="icon-btn" id="btn-toggle-overlay" data-tooltip="Page Controls">
-                <span class="material-symbols-outlined">tune</span>
-            </button>
-            <button class="icon-btn" id="btn-floating-vars" data-tooltip="Floating Vars">
-                <span class="material-symbols-outlined">open_in_new</span>
-            </button>
-        </div>
-
-        <!-- Status Line (32px) -->
-        <div class="compact-status">
-            <span id="status-text">Active: <span id="active-vars-count">0</span> vars</span>
-            <span id="current-site-name" class="status-indicator"></span>
-        </div>
-
-        <!-- Bottom Actions (32px) -->
-        <div class="compact-actions">
-            <button class="icon-btn" id="add-var" data-tooltip="Add Variable">
-                <span class="material-symbols-outlined">add_circle</span>
-            </button>
-            <button class="icon-btn" id="btn-fill-form" data-tooltip="Fill Form">
+            <button id="btn-fill-form" class="action-btn primary" data-tooltip="Fill Form">
                 <span class="material-symbols-outlined">play_arrow</span>
+                Fill Form
             </button>
-            <button class="icon-btn" id="btn-expand" data-tooltip="Full View">
-                <span class="material-symbols-outlined">open_in_full</span>
+            <button id="btn-floating-vars" class="action-btn" data-tooltip="Floating Vars">
+                <span class="material-symbols-outlined">open_in_new</span>
+                Float
             </button>
         </div>
 
         <!-- Notification Area -->
-        <div id="notification-area" role="status" aria-live="polite"
-            style="position: fixed; top: 10px; right: 10px; z-index: 10000;"></div>
-    </div>
-
-    <!-- Full View Modal -->
-    <div id="full-view-modal" class="full-view-modal" style="display: none;">
-        <div class="full-view-content">
-            <div class="full-view-header">
-                <h2>FillFlux</h2>
-                <button class="icon-btn" id="close-full-view" data-tooltip="Close">
-                    <span class="material-symbols-outlined">close</span>
-                </button>
-            </div>
-
-            <div class="full-view-nav">
-                <button class="nav-btn active" data-section="vars">
-                    <span class="material-symbols-outlined">data_object</span>
-                    Variables
-                </button>
-                <button class="nav-btn" data-section="sites">
-                    <span class="material-symbols-outlined">language</span>
-                    Sites
-                </button>
-                <button class="nav-btn" data-section="profiles">
-                    <span class="material-symbols-outlined">person</span>
-                    Profiles
-                </button>
-            </div>
-
-            <div class="full-view-body">
-                <section id="full-vars" class="full-section active">
-                    <div class="section-header">
-                        <h3>Variables</h3>
-                        <button class="icon-btn" id="full-add-var" data-tooltip="Add Variable">
-                            <span class="material-symbols-outlined">add</span>
-                        </button>
-                    </div>
-                    <ul id="full-vars-list" class="material-list"></ul>
-                    <div class="add-variable-form">
-                        <input id="full-new-var-name" placeholder="Variable name" />
-                        <input id="full-new-var-value" placeholder="Value (optional)" />
-                        <button id="full-add-var-btn">Add</button>
-                    </div>
-                </section>
-
-                <section id="full-sites" class="full-section">
-                    <div class="section-header">
-                        <h3>Sites</h3>
-                    </div>
-                    <ul id="full-sites-list" class="material-list"></ul>
-                </section>
-
-                <section id="full-profiles" class="full-section">
-                    <div class="section-header">
-                        <h3>Profiles</h3>
-                        <button class="icon-btn" id="full-new-profile" data-tooltip="New Profile">
-                            <span class="material-symbols-outlined">add</span>
-                        </button>
-                    </div>
-                    <ul id="full-profiles-list" class="material-list"></ul>
-                </section>
-            </div>
-        </div>
+        <div id="notification-area" role="status" aria-live="polite"></div>
     </div>
 
     <!-- Modal Root for other modals -->

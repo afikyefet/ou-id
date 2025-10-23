@@ -1,0 +1,22 @@
+{
+    "name": "ou-id",
+    "version": "0.1.0",
+    "description": "Capture values from page elements and paste variables into forms using profiles.",
+    "main": "dist/manifest.json",
+    "scripts": {
+        "build": "echo 'Build completed - extension files are in dist/'",
+        "dev": "echo 'Development mode - extension files are in dist/'",
+        "package": "zip -r ou-id-extension.zip dist/",
+        "clean": "rm -rf dist/*"
+    },
+    "keywords": [
+        "chrome-extension",
+        "form-filler",
+        "automation",
+        "browser-extension"
+    ],
+    "author": "Afik",
+    "license": "MIT",
+    "devDependencies": {},
+    "dependencies": {}
+}

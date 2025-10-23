@@ -307,15 +307,22 @@ let overlayEnabled = true;
 })();
 
 // Tab logic
-for (const btn of document.querySelectorAll('.tabs button')) {
-    btn.addEventListener('click', () => {
-        document.querySelector('.tabs button.active')?.classList.remove('active');
-        btn.classList.add('active');
-        const tab = btn.dataset.tab;
-        document.querySelectorAll('.tab').forEach(s => s.classList.remove('active'));
-        byId(`tab-${tab}`).classList.add('active');
+document.addEventListener('DOMContentLoaded', () => {
+    // Tab switching
+    const tabBtns = document.querySelectorAll('.tab-btn');
+    tabBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            // Remove active class from all tabs and content
+            tabBtns.forEach(b => b.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+            // Add active class to clicked tab and corresponding content
+            btn.classList.add('active');
+            const tabName = btn.dataset.tab;
+            document.getElementById(`tab-${tabName}`).classList.add('active');
+        });
     });
-}
+});
 
 // Atomic storage operations to prevent race conditions
 async function getAll() {
@@ -359,44 +366,34 @@ async function createProfile(name, sitePattern) {
     return newProfile;
 }
 
-// Notification system
+// Enhanced notification system
 function showNotification(message, type = 'info', duration = 3000) {
     const notificationArea = document.getElementById('notification-area');
     if (!notificationArea) return;
 
     const notification = document.createElement('div');
-    notification.style.cssText = `
-        background: ${type === 'success' ? '#28a745' : type === 'error' ? '#dc3545' : '#007bff'};
-        color: white;
-        padding: 8px 12px;
-        border-radius: 4px;
-        margin-bottom: 4px;
-        font-size: 12px;
-        animation: slideIn 0.3s ease-out;
-        max-width: 200px;
-        word-wrap: break-word;
+    notification.className = `notification ${type}`;
+
+    // Icon based on type
+    const iconMap = {
+        success: 'check_circle',
+        error: 'error',
+        warning: 'warning',
+        info: 'info'
+    };
+
+    notification.innerHTML = `
+        <span class="material-symbols-outlined">${iconMap[type] || 'info'}</span>
+        <div class="notification-message">${escapeHTML(String(message ?? ''))}</div>
     `;
 
-    notification.textContent = String(message ?? '');
     notificationArea.appendChild(notification);
-
-    // Add slide-in animation
-    const style = document.createElement('style');
-    style.textContent = `
-        @keyframes slideIn {
-            from { transform: translateX(100%); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
-        }
-    `;
-    if (!document.querySelector('#notification-style')) {
-        style.id = 'notification-style';
-        document.head.appendChild(style);
-    }
 
     // Auto-remove after duration
     setTimeout(() => {
         if (notification.parentNode) {
-            notification.style.animation = 'slideOut 0.3s ease-out forwards';
+            notification.style.opacity = '0';
+            notification.style.transform = 'translateX(100%)';
             setTimeout(() => notification.remove(), 300);
         }
     }, duration);
@@ -564,21 +561,21 @@ async function renderVars() {
     $vars.innerHTML = '';
     Object.values(vars).forEach(v => {
         const li = document.createElement('li');
-        li.className = 'card';
+        li.className = 'item-card';
         const statusIcon = v.autoCopyUntil && v.autoCopyUntil > Date.now() ?
             icon('autorenew', 'small') : icon('radio_button_unchecked', 'small');
 
         li.innerHTML = `
-      <div class="row">
+      <div class="item-row">
         <input value="${escapeHTML(v.name)}" data-role="name" />
         <input value="${escapeHTML(v.value ?? '')}" data-role="value" />
-        <div class="actions">
+        <div class="item-actions">
           <button class="icon-btn small" data-role="save" data-tooltip="Save">${icon('check', 'small')}</button>
           <button class="icon-btn small" data-role="auto" data-tooltip="Auto-copy">${icon('autorenew', 'small')}</button>
           <button class="icon-btn small danger" data-role="del" data-tooltip="Delete">${icon('delete', 'small')}</button>
         </div>
       </div>
-      <div class="small">
+      <div class="item-meta">
         ${statusIcon} ${renderTimerStatus(v)}
       </div>
     `;
@@ -743,18 +740,20 @@ async function renderSites() {
     $sites.innerHTML = '';
     Object.values(sites).forEach(s => {
         const li = document.createElement('li');
-        li.className = 'card';
+        li.className = 'item-card';
         const els = s.elements?.length || 0;
         li.innerHTML = `
-      <div class="row">
+      <div class="item-row">
         <input value="${escapeHTML(s.title)}" data-role="title" />
         <input value="${escapeHTML(s.urlPattern)}" data-role="pattern" />
-        <div style="display:flex; gap:4px; justify-content:flex-end">
-          <button data-role="save" data-i18n="save">${t('save')}</button>
-          <button class="danger" data-role="del" data-i18n="del">${t('del')}</button>
+        <div class="item-actions">
+          <button class="icon-btn small" data-role="save" data-tooltip="Save">${icon('check', 'small')}</button>
+          <button class="icon-btn small danger" data-role="del" data-tooltip="Delete">${icon('delete', 'small')}</button>
         </div>
       </div>
-      <div class="small">${els} ${t('selectors')}</div>
+      <div class="item-meta">
+        ${els} ${t('selectors')}
+      </div>
     `;
         li.querySelector('[data-role="save"]').onclick = async () => {
             const title = li.querySelector('[data-role="title"]').value.trim();
@@ -792,11 +791,11 @@ async function renderProfiles() {
 
     if (currentProfiles.length === 0) {
         const notice = document.createElement('div');
-        notice.className = 'card';
+        notice.className = 'item-card';
         notice.innerHTML = `
             <div style="text-align: center; padding: 20px; color: var(--muted);">
                 No profiles for this site yet.<br>
-                Click "New Profile for This Page" to create one.
+                Click "New Profile" to create one.
             </div>
         `;
         $profiles.appendChild(notice);
@@ -805,16 +804,16 @@ async function renderProfiles() {
 
     currentProfiles.forEach(p => {
         const li = document.createElement('li');
-        li.className = 'card';
+        li.className = 'item-card';
         li.innerHTML = `
-            <div class="row">
+            <div class="item-row">
                 <strong>${escapeHTML(p.name)}</strong>
-                <div style="display:flex; gap:4px; justify-content:flex-end">
-                    <button data-role="edit" data-i18n="edit">${t('edit')}</button>
-                    <button class="danger" data-role="del" data-i18n="delete">${t('delete')}</button>
+                <div class="item-actions">
+                    <button class="icon-btn small" data-role="edit" data-tooltip="Edit">${icon('edit', 'small')}</button>
+                    <button class="icon-btn small danger" data-role="del" data-tooltip="Delete">${icon('delete', 'small')}</button>
                 </div>
             </div>
-            <div class="small">${p.inputs?.length || 0} ${t('inputs_configured')}</div>
+            <div class="item-meta">${p.inputs?.length || 0} ${t('inputs_configured')}</div>
             <div class="inputs-list" style="margin-top: 8px;"></div>
         `;
 
@@ -823,9 +822,9 @@ async function renderProfiles() {
         // Show configured inputs
         (p.inputs || []).forEach((input, idx) => {
             const inputDiv = document.createElement('div');
-            inputDiv.className = 'row';
+            inputDiv.className = 'item-row';
             inputDiv.style.padding = '4px 0';
-            inputDiv.style.borderBottom = '1px solid #1a2438';
+            inputDiv.style.borderBottom = '1px solid var(--md-outline-variant)';
 
             const varName = escapeHTML(input.varName || 'No variable selected');
             const selectorPreviewRaw = input.selector.length > 40 ?
@@ -834,7 +833,7 @@ async function renderProfiles() {
 
             inputDiv.innerHTML = `
                 <div style="flex: 1;">
-                    <div class="small" style="color: var(--muted);">${selectorPreview}</div>
+                    <div class="item-meta" style="color: var(--muted);">${selectorPreview}</div>
                     <div style="color: var(--accent);">→ ${varName}</div>
                 </div>
             `;
@@ -1029,7 +1028,7 @@ async function editProfile(profileId) {
 }
 
 // Add rows
-byId('add-var').onclick = async () => {
+byId('add-var-btn').onclick = async () => {
     const name = byId('new-var-name').value.trim();
     const value = byId('new-var-value').value;
     if (!name) return;
@@ -1039,6 +1038,7 @@ byId('add-var').onclick = async () => {
         byId('new-var-name').value = '';
         byId('new-var-value').value = '';
         renderVars();
+        updateCompactStatus();
         showNotification(`Variable "${name}" created successfully`, 'success');
     } catch (error) {
         showNotification(`Failed to create variable: ${error.message}`, 'error');
@@ -1046,7 +1046,7 @@ byId('add-var').onclick = async () => {
 };
 
 // New profile for current page
-byId('btn-new-profile-here').onclick = async () => {
+byId('btn-new-profile').onclick = async () => {
     const { url } = await new Promise(r => chrome.runtime.sendMessage({ type: 'GET_ACTIVE_TAB_URL' }, r));
     if (!url) {
         showNotification('Cannot detect current page URL', 'error');
@@ -1103,37 +1103,54 @@ function generateSmartProfileName(url) {
 }
 
 // Picker integration
-byId('btn-pick').onclick = () => chrome.runtime.sendMessage({ type: 'INJECT_PICKER' });
+byId('btn-pick').onclick = async () => {
+    const btn = byId('btn-pick');
+    btn.classList.add('active');
+    try {
+        chrome.runtime.sendMessage({ type: 'INJECT_PICKER' });
+        showNotification('Element picker activated', 'info');
+    } finally {
+        setTimeout(() => btn.classList.remove('active'), 300);
+    }
+};
 
 // Manual content script refresh
 byId('btn-refresh-content').onclick = async () => {
+    const btn = byId('btn-refresh-content');
+    btn.classList.add('loading');
     try {
         const res = await sendMessageAsync('REFRESH_CONTENT_SCRIPT');
 
         if (res?.ok) {
-            await alertModal('Content scripts refreshed successfully!');
+            showNotification('Content scripts refreshed!', 'success');
         } else {
-            await alertModal(`Failed to refresh: ${res?.error || 'Unknown error'}`);
+            showNotification(`Failed to refresh: ${res?.error || 'Unknown error'}`, 'error');
         }
     } catch (error) {
-        await alertModal(`Refresh failed: ${error.message}`);
+        showNotification(`Refresh failed: ${error.message}`, 'error');
+    } finally {
+        btn.classList.remove('loading');
     }
 };
 
 // Toggle page overlay controls
 byId('btn-toggle-overlay').onclick = async () => {
+    const btn = byId('btn-toggle-overlay');
     overlayEnabled = !overlayEnabled;
 
+    btn.classList.add('loading');
     try {
         const res = await sendMessageAsync('TOGGLE_OVERLAY', { enabled: overlayEnabled });
 
         if (res?.ok) {
-            byId('btn-toggle-overlay').textContent = overlayEnabled ? '📍 Page Controls ON' : '📍 Page Controls OFF';
-            byId('btn-toggle-overlay').style.color = overlayEnabled ? 'var(--accent)' : 'var(--muted)';
-            showNotification(overlayEnabled ? 'Page controls enabled' : 'Page controls disabled');
+            btn.classList.toggle('active', overlayEnabled);
+            showNotification(overlayEnabled ? 'Page controls enabled' : 'Page controls disabled', 'success');
         }
     } catch (error) {
-        await alertModal(`Toggle failed: ${error.message}`);
+        showNotification(`Toggle failed: ${error.message}`, 'error');
+        overlayEnabled = !overlayEnabled; // Revert on error
+    } finally {
+        btn.classList.remove('loading');
     }
 };
 
@@ -1254,43 +1271,55 @@ byId('btn-copy-active').onclick = async () => {
 
 // Fill form with profile data
 byId('btn-fill-form').onclick = async () => {
-    const { url } = await new Promise(r => chrome.runtime.sendMessage({ type: 'GET_ACTIVE_TAB_URL' }, r));
-    const all = await getAll();
-
-    // Find profiles for current page
-    const matchingProfiles = Object.values(all[KEYS.PROFILES]).filter(p =>
-        p.sitePattern && matchesPattern(p.sitePattern, url || '')
-    );
-
-    if (matchingProfiles.length === 0) { return alertModal(t('no_profiles_for_site')); }
-
-    let profile;
-    if (matchingProfiles.length === 1) {
-        profile = matchingProfiles[0];
-    } else {
-        const idx = await selectModal({
-            title: 'FillFlux',
-            label: t('choose_profile'),
-            options: matchingProfiles.map((p, i) => `${i}: ${p.name}`)
-        });
-        if (idx < 0 || !matchingProfiles[idx]) return;
-        profile = matchingProfiles[idx];
-    }
-
-    if (!profile || !profile.inputs || profile.inputs.length === 0) { return alertModal(t('no_inputs_in_profile')); }
-
-    // Build mappings from profile inputs
-    const varsByName = Object.fromEntries(Object.values(all[KEYS.VARS]).map(v => [v.name, v.value]));
-    const mappings = profile.inputs
-        .filter(input => input.selector && input.varName) // Only inputs with selector and variable
-        .map(input => {
-            const value = varsByName[input.varName] || '';
-            return { selector: input.selector, value };
-        });
-
-    if (mappings.length === 0) { return alertModal(t('no_valid_mappings')); }
+    const btn = byId('btn-fill-form');
+    btn.classList.add('loading');
 
     try {
+        const { url } = await new Promise(r => chrome.runtime.sendMessage({ type: 'GET_ACTIVE_TAB_URL' }, r));
+        const all = await getAll();
+
+        // Find profiles for current page
+        const matchingProfiles = Object.values(all[KEYS.PROFILES]).filter(p =>
+            p.sitePattern && matchesPattern(p.sitePattern, url || '')
+        );
+
+        if (matchingProfiles.length === 0) {
+            showNotification('No profiles found for this page', 'warning');
+            return;
+        }
+
+        let profile;
+        if (matchingProfiles.length === 1) {
+            profile = matchingProfiles[0];
+        } else {
+            const idx = await selectModal({
+                title: 'FillFlux',
+                label: t('choose_profile'),
+                options: matchingProfiles.map((p, i) => `${i}: ${p.name}`)
+            });
+            if (idx < 0 || !matchingProfiles[idx]) return;
+            profile = matchingProfiles[idx];
+        }
+
+        if (!profile || !profile.inputs || profile.inputs.length === 0) {
+            showNotification('No inputs configured in this profile', 'warning');
+            return;
+        }
+
+        // Build mappings from profile inputs
+        const varsByName = Object.fromEntries(Object.values(all[KEYS.VARS]).map(v => [v.name, v.value]));
+        const mappings = profile.inputs
+            .filter(input => input.selector && input.varName) // Only inputs with selector and variable
+            .map(input => {
+                const value = varsByName[input.varName] || '';
+                return { selector: input.selector, value };
+            });
+
+        if (mappings.length === 0) {
+            showNotification('No valid mappings found', 'warning');
+            return;
+        }
+
         const res = await sendMessageAsync('PASTE_PROFILE', { mappings });
 
         if (!res?.ok) {
@@ -1305,6 +1334,7 @@ byId('btn-fill-form').onclick = async () => {
                 errorMsg += `Failed to set values:\n${failedResults.map(f => `• ${f.selector}`).join('\n')}`;
             }
             errorMsg += '\nTry using "Refresh Scripts" and try again.';
+            showNotification('Fill failed - check console for details', 'error');
             return alertModal(errorMsg);
         }
 
@@ -1312,23 +1342,34 @@ byId('btn-fill-form').onclick = async () => {
         const failed = (res.results || []).filter(r => !r.ok);
 
         if (failed.length === 0) {
-            await alertModal(`Successfully filled ${successful} fields with "${profile.name}" profile!`);
+            // Success! Add animation to button
+            btn.classList.add('success-pulse');
+            setTimeout(() => btn.classList.remove('success-pulse'), 600);
+            showNotification(`Successfully filled ${successful} fields!`, 'success');
         } else {
+            showNotification(`Filled ${successful} fields, ${failed.length} failed`, 'warning');
             await alertModal(`Filled ${successful} fields, but ${failed.length} failed:\n${failed.map(f => `• ${f.selector} ${f.found ? '(set failed)' : '(not found)'}`).join('\n')}`);
         }
     } catch (error) {
-        await alertModal(`Fill error: ${error.message}\n\nTry using "Refresh Scripts" button and try again.`);
+        showNotification(`Fill error: ${error.message}`, 'error');
+    } finally {
+        btn.classList.remove('loading');
     }
 };
 
 // Toggle floating vars window
 byId('btn-floating-vars').onclick = async () => {
+    const btn = byId('btn-floating-vars');
+    btn.classList.add('loading');
     try {
         const res = await sendMessageAsync('TOGGLE_FLOATING_VARS');
 
-        showNotification(res?.visible ? 'Floating panel ON' : 'Floating panel OFF');
+        btn.classList.toggle('active', res?.visible);
+        showNotification(res?.visible ? 'Floating panel ON' : 'Floating panel OFF', res?.visible ? 'success' : 'info');
     } catch (error) {
-        await alertModal(`Failed to toggle floating vars: ${error.message}`);
+        showNotification(`Failed to toggle floating vars: ${error.message}`, 'error');
+    } finally {
+        btn.classList.remove('loading');
     }
 };
 
@@ -1345,329 +1386,6 @@ chrome.runtime.onMessage.addListener((msg) => {
     }
 });
 
-// --- Compact Layout Management ---
-let fullViewModal = null;
-
-function showFullView() {
-    fullViewModal = document.getElementById('full-view-modal');
-    if (fullViewModal) {
-        fullViewModal.style.display = 'flex';
-        renderFullView();
-        // Focus first button for accessibility
-        const firstBtn = fullViewModal.querySelector('.nav-btn');
-        if (firstBtn) firstBtn.focus();
-    }
-}
-
-function hideFullView() {
-    if (fullViewModal) {
-        fullViewModal.style.display = 'none';
-    }
-}
-
-function renderFullView() {
-    renderFullVars();
-    renderFullSites();
-    renderFullProfiles();
-}
-
-// --- Full View Renderers ---
-async function renderFullVars() {
-    const { [KEYS.VARS]: vars = {} } = await getAll();
-    const $fullVarsList = document.getElementById('full-vars-list');
-    if (!$fullVarsList) return;
-
-    $fullVarsList.innerHTML = '';
-    Object.values(vars).forEach(v => {
-        const li = document.createElement('li');
-        li.className = 'card';
-
-        const statusIcon = v.autoCopyUntil && v.autoCopyUntil > Date.now() ?
-            icon('autorenew', 'small') : icon('radio_button_unchecked', 'small');
-
-        li.innerHTML = `
-            <div class="row">
-                <input value="${escapeHTML(v.name)}" data-role="name" />
-                <input value="${escapeHTML(v.value ?? '')}" data-role="value" />
-                <div class="actions">
-                    <button class="icon-btn small" data-role="save" data-tooltip="Save">${icon('check', 'small')}</button>
-                    <button class="icon-btn small" data-role="auto" data-tooltip="Auto-copy">${icon('autorenew', 'small')}</button>
-                    <button class="icon-btn small danger" data-role="del" data-tooltip="Delete">${icon('delete', 'small')}</button>
-                </div>
-            </div>
-            <div class="small">
-                ${statusIcon} ${renderTimerStatus(v)}
-            </div>
-        `;
-
-        // Event handlers
-        li.querySelector('[data-role="save"]').onclick = async () => {
-            const name = li.querySelector('[data-role="name"]').value.trim();
-            const value = li.querySelector('[data-role="value"]').value;
-            const all = await getAll();
-            all[KEYS.VARS][v.id] = { ...v, name, value };
-            await set({ [KEYS.VARS]: all[KEYS.VARS] });
-            renderFullVars();
-            updateCompactStatus();
-        };
-
-        li.querySelector('[data-role="del"]').onclick = async () => {
-            const ok = await confirmModal(`Delete variable "${escapeHTML(v.name)}"?`);
-            if (!ok) return;
-            const all = await getAll();
-            delete all[KEYS.VARS][v.id];
-            await set({ [KEYS.VARS]: all[KEYS.VARS] });
-            renderFullVars();
-            updateCompactStatus();
-        };
-
-        li.querySelector('[data-role="auto"]').onclick = async () => {
-            if (v.autoCopyUntil && v.autoCopyUntil > Date.now()) {
-                const choice = await inputModal({
-                    title: 'FillFlux',
-                    label: `Auto-copy active until ${new Date(v.autoCopyUntil).toLocaleTimeString()}\nEnter minutes to extend (0 to stop):`,
-                    initialValue: '0'
-                });
-                const minutes = +(choice || '0');
-
-                if (minutes === 0) {
-                    const all = await getAll();
-                    delete all[KEYS.VARS][v.id].autoCopyUntil;
-                    await set({ [KEYS.VARS]: all[KEYS.VARS] });
-                    chrome.runtime.sendMessage({ type: 'CLEAR_ALARM', payload: { varId: v.id } });
-                    renderFullVars();
-                } else if (minutes > 0) {
-                    const until = Date.now() + minutes * 60 * 1000;
-                    const all = await getAll();
-                    all[KEYS.VARS][v.id] = { ...v, autoCopyUntil: until };
-                    await set({ [KEYS.VARS]: all[KEYS.VARS] });
-                    chrome.runtime.sendMessage({ type: 'SET_ALARM', payload: { varId: v.id, minutes } });
-                    renderFullVars();
-                    startAutoRefresh(v.id);
-                }
-            } else {
-                const input = await inputModal({
-                    title: 'FillFlux',
-                    label: 'Auto-copy for how many minutes?',
-                    initialValue: '10'
-                });
-                const minutes = +(input || '10') || 10;
-                if (minutes > 0) {
-                    const until = Date.now() + minutes * 60 * 1000;
-                    const all = await getAll();
-                    all[KEYS.VARS][v.id] = { ...v, autoCopyUntil: until };
-                    await set({ [KEYS.VARS]: all[KEYS.VARS] });
-                    chrome.runtime.sendMessage({ type: 'SET_ALARM', payload: { varId: v.id, minutes } });
-                    renderFullVars();
-                    startAutoRefresh(v.id);
-                }
-            }
-        };
-
-        $fullVarsList.appendChild(li);
-    });
-}
-
-async function renderFullSites() {
-    const { url } = await sendMessageAsync('GET_ACTIVE_TAB_URL');
-    const $activeUrl = document.getElementById('active-url');
-    if ($activeUrl) $activeUrl.textContent = url || '';
-
-    const { [KEYS.SITES]: sites = {} } = await getAll();
-    const $fullSitesList = document.getElementById('full-sites-list');
-    if (!$fullSitesList) return;
-
-    $fullSitesList.innerHTML = '';
-    Object.values(sites).forEach(s => {
-        const li = document.createElement('li');
-        li.className = 'card';
-        const els = s.elements?.length || 0;
-        li.innerHTML = `
-            <div class="row">
-                <input value="${escapeHTML(s.title)}" data-role="title" />
-                <input value="${escapeHTML(s.urlPattern)}" data-role="pattern" />
-                <div class="actions">
-                    <button class="icon-btn small" data-role="save" data-tooltip="Save">${icon('check', 'small')}</button>
-                    <button class="icon-btn small danger" data-role="del" data-tooltip="Delete">${icon('delete', 'small')}</button>
-                </div>
-            </div>
-            <div class="small">${els} ${t('selectors')}</div>
-        `;
-
-        li.querySelector('[data-role="save"]').onclick = async () => {
-            const title = li.querySelector('[data-role="title"]').value.trim();
-            const urlPattern = li.querySelector('[data-role="pattern"]').value.trim();
-            const all = await getAll();
-            all[KEYS.SITES][s.id] = { ...s, title, urlPattern };
-            await set({ [KEYS.SITES]: all[KEYS.SITES] });
-            renderFullSites();
-        };
-
-        li.querySelector('[data-role="del"]').onclick = async () => {
-            const ok = await confirmModal(`Delete site "${escapeHTML(s.title)}"?`);
-            if (!ok) return;
-            const all = await getAll();
-            delete all[KEYS.SITES][s.id];
-            await set({ [KEYS.SITES]: all[KEYS.SITES] });
-            renderFullSites();
-        };
-
-        $fullSitesList.appendChild(li);
-    });
-}
-
-async function renderFullProfiles() {
-    const { url } = await sendMessageAsync('GET_ACTIVE_TAB_URL');
-    const currentDomain = url ? new URL(url).hostname : 'unknown';
-    const $currentSiteInfo = document.getElementById('current-site-info');
-    if ($currentSiteInfo) $currentSiteInfo.textContent = `${t('current_page')} ${currentDomain}`;
-
-    const { [KEYS.PROFILES]: profiles = {} } = await getAll();
-    const $fullProfilesList = document.getElementById('full-profiles-list');
-    if (!$fullProfilesList) return;
-
-    $fullProfilesList.innerHTML = '';
-
-    const currentProfiles = Object.values(profiles).filter(p =>
-        p.sitePattern && matchesPattern(p.sitePattern, url || '')
-    );
-
-    if (currentProfiles.length === 0) {
-        const notice = document.createElement('div');
-        notice.className = 'card';
-        notice.innerHTML = `
-            <div style="text-align: center; padding: 20px; color: var(--md-on-surface-variant);">
-                No profiles for this site yet.<br>
-                Click "New Profile" to create one.
-            </div>
-        `;
-        $fullProfilesList.appendChild(notice);
-        return;
-    }
-
-    currentProfiles.forEach(p => {
-        const li = document.createElement('li');
-        li.className = 'card';
-        li.innerHTML = `
-            <div class="row">
-                <strong>${escapeHTML(p.name)}</strong>
-                <div class="actions">
-                    <button class="icon-btn small" data-role="edit" data-tooltip="Edit">${icon('edit', 'small')}</button>
-                    <button class="icon-btn small danger" data-role="del" data-tooltip="Delete">${icon('delete', 'small')}</button>
-                </div>
-            </div>
-            <div class="small">${p.inputs?.length || 0} ${t('inputs_configured')}</div>
-            <div class="inputs-list" style="margin-top: 8px;"></div>
-        `;
-
-        const inputsList = li.querySelector('.inputs-list');
-
-        (p.inputs || []).forEach((input, idx) => {
-            const inputDiv = document.createElement('div');
-            inputDiv.style.cssText = 'border: 1px solid var(--md-outline-variant); border-radius: var(--radius-sm); padding: var(--space-sm); margin-bottom: var(--space-xs);';
-
-            const varName = escapeHTML(input.varName || 'No variable selected');
-            const selectorPreviewRaw = input.selector.length > 40 ?
-                input.selector.substring(0, 40) + '...' : input.selector;
-            const selectorPreview = escapeHTML(selectorPreviewRaw);
-
-            inputDiv.innerHTML = `
-                <div class="small" style="color: var(--md-on-surface-variant);">${selectorPreview}</div>
-                <div style="color: var(--md-primary);">→ ${varName}</div>
-            `;
-            inputsList.appendChild(inputDiv);
-        });
-
-        li.querySelector('[data-role="edit"]').onclick = () => {
-            editProfile(p.id);
-        };
-
-        li.querySelector('[data-role="del"]').onclick = async () => {
-            const ok = await confirmModal(`Delete profile "${escapeHTML(p.name)}"?`);
-            if (!ok) return;
-            const all = await getAll();
-            delete all[KEYS.PROFILES][p.id];
-            await set({ [KEYS.PROFILES]: all[KEYS.PROFILES] });
-            renderFullProfiles();
-        };
-
-        $fullProfilesList.appendChild(li);
-    });
-}
-
-// --- Compact Status Updates ---
-async function updateCompactStatus() {
-    const { [KEYS.VARS]: vars = {} } = await getAll();
-    const activeCount = Object.values(vars).length;
-    const $activeVarsCount = document.getElementById('active-vars-count');
-    if ($activeVarsCount) $activeVarsCount.textContent = activeCount;
-
-    const { url } = await sendMessageAsync('GET_ACTIVE_TAB_URL');
-    const currentDomain = url ? new URL(url).hostname : 'unknown';
-    const $currentSiteName = document.getElementById('current-site-name');
-    if ($currentSiteName) {
-        $currentSiteName.textContent = currentDomain;
-        $currentSiteName.className = 'status-indicator active';
-    }
-}
-
-// --- Event Handlers ---
-document.addEventListener('DOMContentLoaded', () => {
-    // Full view modal handlers
-    const $btnExpand = document.getElementById('btn-expand');
-    const $closeFullView = document.getElementById('close-full-view');
-    const $fullViewModal = document.getElementById('full-view-modal');
-
-    if ($btnExpand) $btnExpand.onclick = showFullView;
-    if ($closeFullView) $closeFullView.onclick = hideFullView;
-    if ($fullViewModal) {
-        $fullViewModal.onclick = (e) => {
-            if (e.target === $fullViewModal) hideFullView();
-        };
-    }
-
-    // Navigation handlers
-    const navBtns = document.querySelectorAll('.nav-btn');
-    navBtns.forEach(btn => {
-        btn.onclick = () => {
-            navBtns.forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-
-            const section = btn.dataset.section;
-            document.querySelectorAll('.full-section').forEach(s => s.classList.remove('active'));
-            document.getElementById(`full-${section}`).classList.add('active');
-        };
-    });
-
-    // Full view form handlers
-    const $fullAddVarBtn = document.getElementById('full-add-var-btn');
-    if ($fullAddVarBtn) {
-        $fullAddVarBtn.onclick = async () => {
-            const name = document.getElementById('full-new-var-name')?.value.trim();
-            const value = document.getElementById('full-new-var-value')?.value;
-            if (!name) return;
-
-            try {
-                await createVariable(name, value);
-                document.getElementById('full-new-var-name').value = '';
-                document.getElementById('full-new-var-value').value = '';
-                renderFullVars();
-                updateCompactStatus();
-                showNotification(`Variable "${name}" created successfully`, 'success');
-            } catch (error) {
-                showNotification(`Failed to create variable: ${error.message}`, 'error');
-            }
-        };
-    }
-
-    // Initial status update
-    updateCompactStatus();
-});
-
-// Initial renders (legacy support)
-renderVars();
-renderSites();
-renderProfiles();
-
 // Initialize auto-refresh for existing active variables
 initializeAutoRefresh();
+
